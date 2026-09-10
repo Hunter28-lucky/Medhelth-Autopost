@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  pulsepublish:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulsepublish-engine
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - DEVELOPER_PASSWORD=krish@dev2026
+      - DEVELOPER_NAME=Krish Goswami
+      - AI_PROVIDER=openrouter
+      - OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
+      - SEARCH_PROVIDER=free_online
+      - WORDPRESS_URL=http://your-wordpress-site.com
+      - AUTO_PUSH_TO_WP=False
+      - SCHEDULER_ENABLED=True
+      - SCHEDULER_INTERVAL_HOURS=6
+    volumes:
+      # Persistent database volume across container updates
+      - ./backend/publisher.db:/app/backend/publisher.db
+      - ./backend/.env:/app/backend/.env

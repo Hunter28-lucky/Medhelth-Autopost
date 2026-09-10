@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: medhealth-autopost
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/topics
+    envVars:
+      - key: AI_PROVIDER
+        value: openrouter
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
+      - key: SEARCH_PROVIDER
+        value: free_online
+      - key: WORDPRESS_URL
+        value: http://sh012.global.temp.domains/~ttprdsmy/medhealthtimes
+      - key: WORDPRESS_API_KEY
+        sync: false
+      - key: DEVELOPER_PASSWORD
+        value: krish@dev2026
+      - key: DEVELOPER_NAME
+        value: Krish Goswami
+      - key: AUTO_PUSH_TO_WP
+        value: "false"
+      - key: SCHEDULER_ENABLED
+        value: "false"
