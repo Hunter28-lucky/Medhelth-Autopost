@@ -5,8 +5,8 @@ from backend.services.openrouter_client import OpenRouterClient, POPULAR_FREE_MO
 def test_openrouter_free_models_list():
     assert len(POPULAR_FREE_MODELS) >= 5
     model_ids = [m["id"] for m in POPULAR_FREE_MODELS]
-    assert "openrouter/free" in model_ids
     assert "inclusionai/ling-3.0-flash-sante:free" in model_ids
+    assert "nex-agi/nex-n2.5-pro:free" in model_ids
     assert "google/gemma-4-31b-it:free" in model_ids
 
 def test_openrouter_configured_check():

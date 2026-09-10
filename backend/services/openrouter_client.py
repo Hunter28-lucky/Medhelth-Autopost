@@ -11,38 +11,38 @@ logger = logging.getLogger("publisher.openrouter")
 # OpenRouter State-of-the-Art Free Model List
 POPULAR_FREE_MODELS = [
     {
-        "id": "openrouter/free",
-        "name": "OpenRouter Auto-Free (Recommended)",
-        "description": "Smart Auto-Router: Dynamically selects the highest quality available free model on OpenRouter with zero downtime."
-    },
-    {
         "id": "inclusionai/ling-3.0-flash-sante:free",
         "name": "Ling 3.0 Flash Santé (Free - Medical)",
         "description": "Domain-tuned healthcare & clinical AI model optimized for medical news and life sciences."
     },
     {
-        "id": "nvidia/nemotron-3-super-120b-a12b:free",
-        "name": "NVIDIA Nemotron 3 Super 120B (Free)",
-        "description": "Massive 120B parameter frontier model with exceptional biomedical synthesis capabilities."
+        "id": "nex-agi/nex-n2.5-pro:free",
+        "name": "Nex N2.5 Pro (Free)",
+        "description": "Frontier open-weights reasoning model with exceptional clinical format adherence."
+    },
+    {
+        "id": "nex-agi/nex-n2.5-mini:free",
+        "name": "Nex N2.5 Mini (Free)",
+        "description": "Ultra-fast response latency with concise factual synthesis."
     },
     {
         "id": "google/gemma-4-31b-it:free",
         "name": "Google Gemma 4 31B IT (Free)",
-        "description": "Google frontier instruction-tuned model with deep reasoning and strict format adherence."
+        "description": "Google frontier instruction-tuned model with deep reasoning."
     },
     {
-        "id": "google/gemma-4-26b-a4b-it:free",
-        "name": "Google Gemma 4 26B (Free)",
-        "description": "Ultra-fast response latency with expansive context window."
+        "id": "openrouter/free",
+        "name": "OpenRouter Auto-Free",
+        "description": "Smart Auto-Router: Dynamically selects available free models."
     }
 ]
 
 FREE_MODEL_CASCADE = [
-    "openrouter/free",
     "inclusionai/ling-3.0-flash-sante:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nex-agi/nex-n2.5-pro:free",
+    "nex-agi/nex-n2.5-mini:free",
     "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free"
+    "openrouter/free"
 ]
 
 class OpenRouterClient:
