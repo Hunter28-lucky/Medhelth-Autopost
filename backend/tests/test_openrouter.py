@@ -5,9 +5,9 @@ from backend.services.openrouter_client import OpenRouterClient, POPULAR_FREE_MO
 def test_openrouter_free_models_list():
     assert len(POPULAR_FREE_MODELS) >= 5
     model_ids = [m["id"] for m in POPULAR_FREE_MODELS]
-    assert "meta-llama/llama-3.3-70b-instruct:free" in model_ids
-    assert "deepseek/deepseek-r1:free" in model_ids
-    assert "google/gemini-2.0-flash-exp:free" in model_ids
+    assert "openrouter/free" in model_ids
+    assert "inclusionai/ling-3.0-flash-sante:free" in model_ids
+    assert "google/gemma-4-31b-it:free" in model_ids
 
 def test_openrouter_configured_check():
     client_unconfigured = OpenRouterClient(api_key="")

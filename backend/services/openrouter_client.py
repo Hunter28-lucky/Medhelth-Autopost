@@ -47,8 +47,8 @@ FREE_MODEL_CASCADE = [
 
 class OpenRouterClient:
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.OPENROUTER_API_KEY
-        self.model = model or settings.OPENROUTER_MODEL or "openrouter/free"
+        self.api_key = api_key if api_key is not None else settings.OPENROUTER_API_KEY
+        self.model = model if model is not None else (settings.OPENROUTER_MODEL or "openrouter/free")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
 
     def is_configured(self) -> bool:
@@ -127,27 +127,21 @@ class OpenRouterClient:
 
                 response_data = self._send_request(payload, timeout=60)
                 choices = response_data.get("choices", [])
-                if not choices:
-                    raise ValueError("Empty choices list returned from OpenRouter.")
-
-                raw_content = choices[0].get("message", {}).get("content", "").strip()
+                msg = choices[0].get("message", {}) or {}
+                raw_content = (msg.get("content") or "").strip()
 
                 # Clean DeepSeek R1 reasoning tags if present
                 if "<think>" in raw_content and "</think>" in raw_content:
                     raw_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
 
-                # Strip markdown code blocks
-                if raw_content.startswith("```json"):
-                    raw_content = raw_content[7:]
-                elif raw_content.startswith("```"):
-                    raw_content = raw_content[3:]
-                if raw_content.endswith("```"):
-                    raw_content = raw_content[:-3]
+                # Robust JSON extraction
+                match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+                if match:
+                    json_str = match.group(0)
+                    parsed = json.loads(json_str)
+                else:
+                    parsed = json.loads(raw_content)
 
-                raw_content = raw_content.strip()
-
-                # Parse JSON
-                parsed = json.loads(raw_content)
                 logger.info(f"Successfully generated draft using OpenRouter model: {model_candidate}")
                 return parsed
 
