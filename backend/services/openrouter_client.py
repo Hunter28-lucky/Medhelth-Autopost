@@ -128,7 +128,7 @@ class OpenRouterClient:
                 # Remove None fields
                 payload = {k: v for k, v in payload.items() if v is not None}
 
-                response_data = self._send_request(payload, timeout=15)
+                response_data = self._send_request(payload, timeout=45)
                 choices = response_data.get("choices", [])
                 if not choices:
                     err_msg = response_data.get("error", {}).get("message", "Empty choices array returned")

@@ -50,7 +50,7 @@ class Settings:
     WORDPRESS_TIMEOUT: int = int(os.getenv("WORDPRESS_TIMEOUT", "30"))
 
     # Deduplication
-    DEDUP_SIMILARITY_THRESHOLD: float = float(os.getenv("DEDUP_SIMILARITY_THRESHOLD", "0.80"))
+    DEDUP_SIMILARITY_THRESHOLD: float = float(os.getenv("DEDUP_SIMILARITY_THRESHOLD", "0.70"))
 
     # Review Gate & Publishing Policy
     # By default, FALSE means drafts are held in the admin dashboard for manual review before sending to WP.

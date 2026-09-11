@@ -63,13 +63,24 @@ class DeduplicationEngine:
 
         for c_title in candidate_titles:
             c_norm = c_title.lower().strip()
+            c_tokens = set(w for w in re.split(r'\W+', c_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial"])
+            
             for p_id, p_title in existing_posts:
                 if not p_title:
                     continue
                 p_norm = p_title.lower().strip()
+                p_tokens = set(w for w in re.split(r'\W+', p_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial"])
+                
+                # SequenceMatcher similarity
                 ratio = difflib.SequenceMatcher(None, c_norm, p_norm).ratio()
-                if ratio >= 0.85:
+                if ratio >= 0.70:
                     return True, f"Headline '{c_title}' is {ratio*100:.1f}% similar to past post ID {p_id} ('{p_title}')"
+                
+                # Significant keyword overlap (e.g. same trial, drug, or clinical finding)
+                if c_tokens and p_tokens:
+                    overlap = len(c_tokens.intersection(p_tokens)) / max(len(c_tokens), 1)
+                    if overlap >= 0.65:
+                        return True, f"Headline '{c_title}' shares {overlap*100:.0f}% core topic terms with past post ID {p_id} ('{p_title}')"
 
         return False, None
 

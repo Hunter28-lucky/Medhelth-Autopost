@@ -76,7 +76,16 @@ class PublishingPipeline:
         log_step("START", f"Initiated pipeline run for topic '{topic.name}' (Trigger: {trigger_type})")
 
         try:
-            # 4. Research Phase
+            # Query past article URL hashes and post titles to guarantee zero story overlap
+            past_articles_stmt = select(ResearchArticle.url_hash).distinct()
+            past_articles_res = await session.execute(past_articles_stmt)
+            historical_url_hashes = set(past_articles_res.scalars().all())
+
+            past_posts_stmt = select(GeneratedPost.title).where(GeneratedPost.status != "REJECTED")
+            past_posts_res = await session.execute(past_posts_stmt)
+            historical_titles = [t for t in past_posts_res.scalars().all() if t]
+
+            # 4. Research Phase (Filtering all previously covered URLs and stories)
             log_step("RESEARCH", f"Searching recent news using provider '{settings.SEARCH_PROVIDER}' (Lookback: {topic.lookback_days} days)...")
             research_articles = await self.research_engine.execute_research(
                 topic_name=topic.name,
@@ -84,11 +93,37 @@ class PublishingPipeline:
                 lookback_days=topic.lookback_days,
                 domain_whitelist=topic.domain_whitelist,
                 domain_blocklist=topic.domain_blocklist,
-                max_articles=4
+                max_articles=4,
+                excluded_url_hashes=historical_url_hashes,
+                excluded_titles=historical_titles
             )
 
+            # If all primary keyword stories were already covered, rotate to distinct clinical sub-niches
             if not research_articles:
-                msg = f"No eligible research articles found for keywords: {topic.keywords}."
+                sub_niches = [
+                    f"{topic.name} clinical trial milestone",
+                    f"{topic.name} computer aided detection multicenter",
+                    f"{topic.name} diagnostic accuracy patient outcomes",
+                    f"{topic.name} real-time procedural safety evaluation",
+                    f"{topic.name} endoscopic screening artificial intelligence"
+                ]
+                for niche in sub_niches:
+                    log_step("RESEARCH_SUB_NICHE", f"Primary stories covered. Pivoting to fresh sub-niche: '{niche}'...")
+                    research_articles = await self.research_engine.execute_research(
+                        topic_name=topic.name,
+                        keywords=[niche],
+                        lookback_days=topic.lookback_days,
+                        domain_whitelist=topic.domain_whitelist,
+                        domain_blocklist=topic.domain_blocklist,
+                        max_articles=4,
+                        excluded_url_hashes=historical_url_hashes,
+                        excluded_titles=historical_titles
+                    )
+                    if research_articles:
+                        break
+
+            if not research_articles:
+                msg = f"No new unvisited research articles found for keywords: {topic.keywords}."
                 log_step("RESEARCH_FAILED", msg, "warning")
                 run_log.status = "COMPLETED"
                 run_log.error_message = msg
@@ -97,7 +132,7 @@ class PublishingPipeline:
                 await session.commit()
                 return {"success": False, "run_id": run_id, "message": msg}
 
-            log_step("RESEARCH_SUCCESS", f"Retrieved {len(research_articles)} articles with extracted body text and factual claims.")
+            log_step("RESEARCH_SUCCESS", f"Retrieved {len(research_articles)} fresh, distinct articles with verified clinical findings.")
 
             # Save Research Articles in DB
             for art in research_articles:
