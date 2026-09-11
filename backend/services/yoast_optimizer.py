@@ -167,7 +167,7 @@ class YoastSeoOptimizer:
         total_points += 15
 
         # 5. Subheading Distribution
-        headings = soup.find_all(['h2', 'h3'])
+        headings = soup.find_all(['h2', 'h3', 'h4', 'h5', 'h6'])
         if len(plain_text.split()) > 300 and len(headings) >= 2:
             checks.append({"id": "subheading_distribution", "title": "Subheading Distribution", "status": "good", "score": len(headings), "message": f"Good job! Subheadings are well-distributed across {len(headings)} sections."})
             score_points += 15
@@ -328,7 +328,7 @@ class YoastSeoOptimizer:
         total_points += 10
 
         # 8. Keyphrase in Subheadings
-        h2_headings = [h.get_text().lower() for h in soup.find_all(['h2', 'h3'])]
+        h2_headings = [h.get_text().lower() for h in soup.find_all(['h2', 'h3', 'h4', 'h5', 'h6'])]
         h2_has_kw = any(kw in h or any(k in h for k in kw_words) for h in h2_headings)
         if h2_has_kw:
             checks.append({"id": "h2_kw", "title": "Keyphrase in Subheadings", "status": "good", "message": "The focus keyphrase appears in at least one higher-level subheading."})
@@ -459,8 +459,8 @@ class YoastSeoOptimizer:
                 # Prepend or smoothly weave keyphrase into first sentence
                 first_p.string = f"Recent clinical investigations into {focus_keyphrase.lower()} highlight critical healthcare advancements. " + first_text
 
-        # 2. Fix Subheadings (Ensure at least one H2 has the keyphrase)
-        h2s = soup.find_all(['h2', 'h3'])
+        # 2. Fix Subheadings (Ensure at least one higher heading has the keyphrase)
+        h2s = soup.find_all(['h2', 'h3', 'h4', 'h5', 'h6'])
         has_kw_in_h2 = any(focus_keyphrase.lower() in h.get_text().lower() for h in h2s)
         if not has_kw_in_h2 and h2s:
             # Update first H2 to include keyphrase

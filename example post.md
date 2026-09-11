@@ -1,141 +1,119 @@
 # Master Example Post & WordPress Editorial Standard
 
-This document is the official reference standard for all article posts generated and published by PulsePublish AI for MedHealth / MedlineReview WordPress sites. Every generated post must match this exact visual structure, clean HTML formatting, paragraph rhythm, and wording placement.
+This document is the official reference standard for all article posts generated and published by PulsePublish AI for MedHealth / MedlineReview WordPress sites. Every generated post must match this exact visual structure, clean HTML formatting, paragraph rhythm, and wording placement directly as rendered in the WordPress Classic Editor.
 
 ---
 
-## 1. Verbatim Post from WordPress Editor
+## 1. Verbatim Posts from WordPress Editor Screenshots
 
-### Post Title
+### Reference Post 1: EggNest Complete 2.0 (Word Count: 482 words)
+*Source: WordPress Classic Editor (`H6 » STRONG` path)*
+
+#### Post Title
 ```text
-Luffu Link Launch New LTE Health Band From Fitbit Founders.
+EggNest Launch Egg Medical Unveils Version 2.0 .
 ```
 
-### Permalink
+#### Permalink
 ```text
-https://medlinereview.com/luffu-link-launch/
+https://medlinereview.com/eggnest-launch-2-0/
 ```
 
-### Body Content (Exact Wording & Structure)
+#### Clean Semantic HTML (`body_html`)
+```html
+<h6><strong>EggNest Launch Advances Safety</strong></h6>
+<p>The EggNest Launch introduces Egg Medical's EggNest Complete 2.0, a radiation shielding system designed for modern interventional suites. The solution improves staff protection while reducing installation challenges. Its modular design allows hospitals to upgrade safety without major construction or interruptions to patient care.</p>
 
-## Luffu Link A New Approach to Family Health Care
+<h6><strong>Modern Design Simplifies Installation</strong></h6>
+<p>The EggNest Complete 2.0 features a lightweight and durable structure. Hospitals can install it quickly without rebuilding procedure rooms. This approach reduces downtime and keeps clinical services running smoothly.</p>
+<p>The system fits into existing interventional suites with minimal changes. Medical teams can continue treating patients while facilities improve radiation protection. This practical design also lowers the cost of modernization.</p>
 
-The Luffu Link is an LTE health and safety wearable designed to help families stay connected while supporting everyday well-being. Created by the founders of Fitbit, this innovative band focuses on family care rather than traditional fitness tracking. It combines health sensing, emergency communication, and location awareness in a simple wearable that can work without a smartphone nearby.
+<h6><strong>EggNest Launch Supports Clinical Workflows</strong></h6>
+<p>The EggNest Launch focuses on improving efficiency inside procedure rooms. The compact shielding system creates more working space for physicians, nurses, and technicians. Staff can move freely during complex procedures without compromising safety.</p>
+<p>The design works with many standard imaging and surgical systems. Hospitals do not need extensive modifications to integrate the technology. This flexibility makes adoption easier across cardiology, vascular, and other interventional specialties.</p>
+<p>Healthcare organizations can invest more in patient care because they spend less on construction. The simplified installation process also helps facilities complete upgrades faster.</p>
 
-The device aims to give caregivers greater peace of mind while allowing loved ones to maintain their independence. Instead of requiring users to constantly check an app or manage complicated technology, it provides essential information through a straightforward system. Users can also record details about medications, symptoms, meals, and moods through voice commands.
+<h6><strong>Improving Hospital Efficiency</strong></h6>
+<p>Hospitals often delay infrastructure projects because renovations are expensive and disruptive. Egg Medical addresses this challenge with a solution that installs efficiently and requires fewer structural changes.</p>
+<p>The system helps healthcare providers strengthen radiation protection while maintaining daily operations. Clinical teams continue performing procedures without extended closures or scheduling delays. This balance improves productivity and supports better patient access.</p>
+<p>The technology also reduces barriers for smaller hospitals. Community healthcare facilities can now access advanced shielding without making large capital investments.</p>
 
-These updates can help families understand changes in daily routines and recognize patterns that may require attention. The approach focuses on useful information rather than overwhelming users with complicated health dashboards. As a result, the wearable is designed to function more like a supportive guardian than a surveillance device.
+<h6><strong>Better Protection for Medical Staff</strong></h6>
+<p>Medical professionals work in radiation environments every day. Reliable shielding helps reduce occupational exposure during image-guided procedures. Better protection supports staff wellbeing and creates a safer workplace.</p>
+<p>Comfort also plays an important role. The streamlined design improves movement around the operating area. Teams can focus on patient care instead of navigating bulky shielding equipment.</p>
+<p>Hospitals that prioritize staff safety often improve employee satisfaction and long-term retention. Strong safety standards also help organizations meet evolving regulatory expectations.</p>
 
-## Luffu Link Features and Connectivity
-
-The Luffu Link includes built-in LTE connectivity, allowing wearers to send help requests directly from their wrist. This capability can be especially useful when someone is away from their smartphone. With connected safety features, users can quickly communicate with trusted contacts when they need assistance.
-
-GPS location tracking adds another layer of protection. When an emergency occurs, the device can help communicate the user's location to designated contacts. It can also transmit voice messages alongside important information, including heart rate, activity levels, and battery status.
-
-The wearable continuously monitors several aspects of daily activity. Sleep, movement, breathing patterns, and heart rate can provide useful information about changes in a person's routine. Rather than simply collecting large amounts of data, the system aims to identify meaningful developments that families can understand and act upon.
-
-The screenless design also plays an important role in the overall experience. Without a traditional display demanding constant attention, users can remain focused on their surroundings. This design may make the wearable more comfortable for older adults and people who prefer less screen-based technology.
-
-Another advantage is the integrated connectivity approach. Users do not need to manage a separate carrier plan for the LTE service. This can make the technology easier to adopt for families looking for a convenient health and safety solution.
-
-## Luffu Link and the Future of Family Care
-
-The Luffu Link reflects a broader movement toward technology that supports caregivers and their families. Many households currently depend on multiple health apps, communication tools, emergency devices, and monitoring systems. Managing these separate solutions can create additional work for caregivers who already have demanding responsibilities.
-
-This wearable attempts to bring several important functions together. Health monitoring, emergency communication, location tracking, and voice logging can operate as part of one connected system. This integrated approach may help reduce the mental burden associated with coordinating care.
-
-The founders' experience with Fitbit also provides a foundation for developing technology around everyday health and wellness. However, this product takes a different direction by focusing on family connection and safety. Its goal is not simply to measure fitness performance but to provide information that can help families understand how their loved ones are doing.
-
-The platform can also encourage better communication between caregivers and family members. Instead of relying only on occasional conversations or manual updates, families can receive useful insights into changing routines. This may help them respond earlier when something appears unusual.
-
-The company intends to continue developing human-focused solutions for family care. With its combination of connectivity, health sensing, and safety capabilities, the wearable represents a thoughtful direction for modern caregiving technology. Luffu Link ultimately demonstrates how wearable devices can move beyond fitness tracking and become practical tools for supporting families, encouraging independence, and creating stronger connections between loved ones.
+<h6><strong>Future of Radiation Safety</strong></h6>
+<p>The EggNest Launch demonstrates how radiation protection continues to evolve. Healthcare providers increasingly seek solutions that combine safety, efficiency, and affordability. The EggNest Complete 2.0 meets these needs through a practical and adaptable design.</p>
+<p>As interventional procedures become more common, hospitals will require shielding systems that fit changing clinical environments. Flexible solutions allow organizations to modernize without disrupting essential services.</p>
+<p>The EggNest Launch sets a strong example for future innovation in radiation safety. Its modular approach supports long-term growth while helping hospitals improve operational efficiency. By combining easy installation, equipment compatibility, and dependable protection, the system provides lasting value for healthcare organizations and the professionals who rely on safe working environments every day.</p>
+```
 
 ---
 
-## 2. WordPress Semantic HTML Output
+### Reference Post 2: Patent Dispute (Single-Cell Sequencing)
+*Source: WordPress Classic Editor (`H6 » STRONG` path)*
 
-When sent to the WordPress REST API (`/wp-json/pulse-sync/v1/post`), the `post_content` / `body_html` MUST consist strictly of clean HTML elements (`<h2>` and `<p>`).
+#### Post Title
+```text
+Patent Dispute Court Ruling Reshapes Biotech Competition .
+```
+
+#### Section Breakdown
+- `<h6><strong>Patent Dispute Court Ruling Reshapes Biotech Competition</strong></h6>` (3 short paragraphs)
+- `<h6><strong>Implications of the Patent Dispute</strong></h6>` (3 short paragraphs)
+- `<h6><strong>Judicial Review and Industry Impact</strong></h6>` (3 short paragraphs)
+- `<h6><strong>Future Direction for Single-Cell Sequencing</strong></h6>` (2 short paragraphs)
+
+---
+
+## 2. WordPress Semantic HTML Output Directives
+
+When sent to the WordPress REST API (`/wp-json/pulse-sync/v1/post`), the `post_content` / `body_html` MUST consist strictly of clean HTML elements (`<h6><strong>...</strong></h6>` and `<p>`).
 
 > [!IMPORTANT]
-> **NO Messy Divs or Inline Styles**: Never wrap content in `<div class="key-takeaways" style="...">`, `<div class="faq-item">`, or `<div class="medical-disclaimer" style="...">`. Keep `body_html` purely semantic so the WordPress Classic and Gutenberg editors render clean, native typography without breaking theme styles. Metadata, sources, and takeaways are stored separately in WordPress custom meta fields.
-
-```html
-<h2>Luffu Link A New Approach to Family Health Care</h2>
-<p>The Luffu Link is an LTE health and safety wearable designed to help families stay connected while supporting everyday well-being. Created by the founders of Fitbit, this innovative band focuses on family care rather than traditional fitness tracking. It combines health sensing, emergency communication, and location awareness in a simple wearable that can work without a smartphone nearby.</p>
-<p>The device aims to give caregivers greater peace of mind while allowing loved ones to maintain their independence. Instead of requiring users to constantly check an app or manage complicated technology, it provides essential information through a straightforward system. Users can also record details about medications, symptoms, meals, and moods through voice commands.</p>
-<p>These updates can help families understand changes in daily routines and recognize patterns that may require attention. The approach focuses on useful information rather than overwhelming users with complicated health dashboards. As a result, the wearable is designed to function more like a supportive guardian than a surveillance device.</p>
-
-<h2>Luffu Link Features and Connectivity</h2>
-<p>The Luffu Link includes built-in LTE connectivity, allowing wearers to send help requests directly from their wrist. This capability can be especially useful when someone is away from their smartphone. With connected safety features, users can quickly communicate with trusted contacts when they need assistance.</p>
-<p>GPS location tracking adds another layer of protection. When an emergency occurs, the device can help communicate the user's location to designated contacts. It can also transmit voice messages alongside important information, including heart rate, activity levels, and battery status.</p>
-<p>The wearable continuously monitors several aspects of daily activity. Sleep, movement, breathing patterns, and heart rate can provide useful information about changes in a person's routine. Rather than simply collecting large amounts of data, the system aims to identify meaningful developments that families can understand and act upon.</p>
-<p>The screenless design also plays an important role in the overall experience. Without a traditional display demanding constant attention, users can remain focused on their surroundings. This design may make the wearable more comfortable for older adults and people who prefer less screen-based technology.</p>
-<p>Another advantage is the integrated connectivity approach. Users do not need to manage a separate carrier plan for the LTE service. This can make the technology easier to adopt for families looking for a convenient health and safety solution.</p>
-
-<h2>Luffu Link and the Future of Family Care</h2>
-<p>The Luffu Link reflects a broader movement toward technology that supports caregivers and their families. Many households currently depend on multiple health apps, communication tools, emergency devices, and monitoring systems. Managing these separate solutions can create additional work for caregivers who already have demanding responsibilities.</p>
-<p>This wearable attempts to bring several important functions together. Health monitoring, emergency communication, location tracking, and voice logging can operate as part of one connected system. This integrated approach may help reduce the mental burden associated with coordinating care.</p>
-<p>The founders' experience with Fitbit also provides a foundation for developing technology around everyday health and wellness. However, this product takes a different direction by focusing on family connection and safety. Its goal is not simply to measure fitness performance but to provide information that can help families understand how their loved ones are doing.</p>
-<p>The platform can also encourage better communication between caregivers and family members. Instead of relying only on occasional conversations or manual updates, families can receive useful insights into changing routines. This may help them respond earlier when something appears unusual.</p>
-<p>The company intends to continue developing human-focused solutions for family care. With its combination of connectivity, health sensing, and safety capabilities, the wearable represents a thoughtful direction for modern caregiving technology. Luffu Link ultimately demonstrates how wearable devices can move beyond fitness tracking and become practical tools for supporting families, encouraging independence, and creating stronger connections between loved ones.</p>
-```
+> **NO Messy Divs or Inline Styles**: Never wrap content in `<div class="key-takeaways" style="...">`, `<div class="faq-item">`, or `<div class="medical-disclaimer" style="...">`. Keep `body_html` purely semantic so the WordPress Classic and Gutenberg editors render clean, native typography matching the `H6 » STRONG` theme styling without breaking theme styles. Metadata, sources, and takeaways are stored separately in WordPress custom meta fields.
 
 ---
 
-## 3. Structural Formula & Paragraph Breakdown
+## 3. Structural Formula & Content Architecture
 
-The article follows a 3-section, 13-paragraph architecture designed for high readability, user engagement, and 100% Yoast SEO compliance.
+The article follows a 5-to-6 section architecture designed for high readability, user engagement, and 100% Yoast SEO v28.4 compliance.
 
-| Section | Paragraph | Primary Objective | Key Wording & Placement Pattern |
-|---|---|---|---|
-| **Header** | — | Headline | `[Subject/Product] [Action Verb] [Key Capability] From [Creator/Institution].` |
-| **Section 1: The New Approach** | Para 1 | **What & Who** | Introduce the subject, creators, core category definition, and main differentiator. |
-| | Para 2 | **User Problem & Ease** | Caregiver peace of mind, independent user dignity, simplified interaction (e.g. voice logging). |
-| | Para 3 | **Philosophical Shift** | Practical insights vs data overload; supportive guardian rather than surveillance device. |
-| **Section 2: Features & Connectivity** | Para 4 | **Core Connectivity** | Cellular / LTE hardware feature, phone-free utility, quick help requests. |
-| | Para 5 | **Safety & Telemetry** | GPS tracking, voice messaging, biometrics transmission during alerts. |
-| | Para 6 | **Continuous Monitoring** | Vitals (sleep, movement, heart rate, respiration); meaningful patterns over raw metrics. |
-| | Para 7 | **Ergonomics & Form Factor** | Screenless or non-intrusive design, older adult comfort, avoiding distraction. |
-| | Para 8 | **Adoption Simplicity** | Integrated carrier service, no extra contracts, removing friction for families. |
-| **Section 3: Industry Future & Impact** | Para 9 | **Macro Industry Shift** | Fragmentation of tools, caregiver burden, need for unified solutions. |
-| | Para 10 | **Consolidation** | Merging monitoring, communication, and safety into a cohesive ecosystem. |
-| | Para 11 | **Pedigree & Evolution** | Founder heritage / historical context, evolving from fitness to true care. |
-| | Para 12 | **Proactive Communication** | Early intervention, routine awareness, avoiding crisis situations. |
-| | Para 13 | **Closing Vision** | Human-centered technology, patient autonomy, long-term impact on care. |
+| Element | Specification | Rationale & Editor Match |
+|---|---|---|
+| **Headline** | `[Focus Keyphrase] [Subject/Action/Detail] .` | Frontloaded keyphrase, ends with period, 45–60 characters. |
+| **Section Headings** | `<h6><strong>Heading Title</strong></h6>` | WordPress Classic Editor dropdown: `Heading 6` + `Bold` (`H6 » STRONG`). |
+| **Sections** | 5 to 6 concise sections | Natural thematic division with clear narrative flow. |
+| **Paragraphs per Section** | 1 to 3 short paragraphs | Clean scannability on desktop and mobile viewports. |
+| **Paragraph Length** | 2 to 3 sentences (30–50 words) | Prevents reader fatigue; strictly satisfies Yoast paragraph length check. |
+| **Total Word Count** | Strictly **450 to 520 words** | Matches exact 482-word benchmark in WordPress editor screenshot. |
 
 ---
 
-## 4. Wording Placement & Cadence Directives
+## 4. Wording Placement & Yoast SEO Cadence Directives
 
-### A. Headline Formula
-- **Length**: 50–65 characters.
-- **Pattern**: `[Focus Keyphrase] Launch New [Tech/Feature] From [Founders/Team].` or `[Focus Keyphrase] Demonstrates [Clinical Benefit] in [Setting].`
-- **Rule**: Capitalize like a clean journalistic news headline. Keep it active and factual.
-
-### B. Focus Keyphrase Placement (Yoast 100% Green)
+### A. Focus Keyphrase Placement (Yoast 100% Green)
 1. **SEO Title / Post Title**: Near the beginning (first 1–3 words).
 2. **First Paragraph**: Within the first sentence (first 10–20 words).
-3. **Subheadings (`<h2>`)**: Present in at least two of the three subheadings.
-4. **Conclusion**: Woven into the final closing takeaway sentence.
-5. **Meta Description**: Front-loaded, strictly 135–155 characters.
+3. **Subheadings (`<h6><strong>`)**: Present in at least two subheadings.
+4. **Keyphrase Density**: 3 to 5 total occurrences across ~480 words (1.0% to 2.2% density band).
+5. **Concluding Paragraph**: Woven into the final closing takeaway summary.
+6. **Meta Description**: Frontloaded, strictly 135–155 characters.
+7. **Slug**: Clean kebab-case containing focus keyphrase.
 
-### C. Natural Transition Words (Yoast $\ge 30\%$)
-Never insert awkward transition words mechanically. Weave them smoothly into the narrative:
-- *"Instead of requiring users to..."*
-- *"These updates can help..."*
-- *"As a result, the wearable is designed to..."*
-- *"With connected safety features..."*
-- *"When an emergency occurs..."*
-- *"Rather than simply collecting large amounts of data..."*
-- *"Another advantage is..."*
-- *"Managing these separate solutions..."*
-- *"This integrated approach may help..."*
-- *"However, this product takes a different direction..."*
-- *"Instead of relying only on occasional conversations..."*
-- *"With its combination of connectivity..."*
-- *"Ultimately demonstrates how..."*
-
-### D. Paragraph & Sentence Density
-- **Paragraphs**: 2–4 sentences per paragraph (40–65 words). Easy to scan on mobile screens.
-- **Sentences**: Clean, concise, mostly 14–18 words. No run-on sentences exceeding 20 words without natural punctuation.
-- **Total Word Count**: 550 to 750 words.
+### B. Natural Transition Words (Yoast $\ge 30\%$)
+Smoothly weave natural transitions throughout paragraphs:
+- *"Specifically, this innovative approach..."*
+- *"Furthermore, the system features..."*
+- *"Consequently, this approach reduces..."*
+- *"In addition, its modular design..."*
+- *"Therefore, medical teams can continue..."*
+- *"Another advantage is that this design..."*
+- *"Notably, the technology focuses on..."*
+- *"Moreover, medical facilities do not require..."*
+- *"In fact, this versatility makes..."*
+- *"However, this clinical advancement addresses..."*
+- *"Similarly, ergonomic comfort plays..."*
+- *"Ultimately, clinical innovations like this demonstrate..."*
+- *"As a result, sets an exemplary benchmark..."*
