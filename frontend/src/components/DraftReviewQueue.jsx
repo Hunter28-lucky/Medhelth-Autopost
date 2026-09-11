@@ -13,6 +13,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
   const [showRegenBox, setShowRegenBox] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmDeleteModal, setConfirmDeleteModal] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   const filteredDrafts = drafts.filter(d => {
     if (statusFilter === 'ALL') return true;
@@ -36,6 +37,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
   };
 
   const handleDeleteSingle = (postId, title) => {
+    setDeleteError(null);
     setConfirmDeleteModal({
       type: 'single',
       ids: [postId],
@@ -45,6 +47,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
 
   const handleDeleteSelected = () => {
     if (selectedIds.length === 0) return;
+    setDeleteError(null);
     setConfirmDeleteModal({
       type: 'bulk',
       ids: selectedIds,
@@ -56,6 +59,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
     const visibleIds = filteredDrafts.map(d => d.id);
     if (visibleIds.length === 0) return;
     const filterName = statusFilter === 'ALL' ? 'all' : statusFilter.toLowerCase().replace('_', ' ');
+    setDeleteError(null);
     setConfirmDeleteModal({
       type: 'all_filtered',
       ids: visibleIds,
@@ -64,26 +68,60 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
   };
 
   const executeDelete = async () => {
-    if (!confirmDeleteModal || !confirmDeleteModal.ids.length) return;
+    if (!confirmDeleteModal) return;
     setIsActionLoading(true);
+    setDeleteError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     try {
+      const payload = confirmDeleteModal.type === 'all_filtered'
+        ? { delete_all: true, status: statusFilter }
+        : { post_ids: confirmDeleteModal.ids };
+
       const res = await fetch('/api/drafts/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ post_ids: confirmDeleteModal.ids })
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Delete failed');
+      clearTimeout(timeoutId);
 
-      setSelectedIds(prev => prev.filter(id => !confirmDeleteModal.ids.includes(id)));
-      if (selectedDraft && confirmDeleteModal.ids.includes(selectedDraft.id)) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || `Server error (${res.status})`);
+      }
+
+      if (confirmDeleteModal.ids) {
+        setSelectedIds(prev => prev.filter(id => !confirmDeleteModal.ids.includes(id)));
+      } else {
+        setSelectedIds([]);
+      }
+
+      if (selectedDraft && confirmDeleteModal.ids?.includes(selectedDraft.id)) {
+        setSelectedDraft(null);
+      } else if (confirmDeleteModal.type === 'all_filtered') {
         setSelectedDraft(null);
       }
+
       setConfirmDeleteModal(null);
-      onRefresh();
+      setIsActionLoading(false);
+
+      if (typeof onRefresh === 'function') {
+        try {
+          onRefresh();
+        } catch (refErr) {
+          console.warn('onRefresh error:', refErr);
+        }
+      }
     } catch (err) {
-      alert('Error deleting drafts: ' + err.message);
-    } finally {
+      clearTimeout(timeoutId);
+      console.error('Delete failed:', err);
+      const msg = err.name === 'AbortError'
+        ? 'Request timed out after 20 seconds. The server may still be deploying. Please try again.'
+        : (err.message || 'Error deleting drafts.');
+      setDeleteError(msg);
       setIsActionLoading(false);
     }
   };
@@ -587,7 +625,16 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
       {/* Delete Confirmation Modal */}
       {confirmDeleteModal && (
         <div className="modal-overlay" style={{ zIndex: 1200 }}>
-          <div className="modal-container" style={{ maxWidth: '460px', padding: '28px', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+          <div className="modal-container" style={{ maxWidth: '460px', padding: '28px', border: '1px solid rgba(244, 63, 94, 0.3)', position: 'relative' }}>
+            {/* Close X button */}
+            <button 
+              onClick={() => { setConfirmDeleteModal(null); setDeleteError(null); setIsActionLoading(false); }}
+              style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#f43f5e' }}>
               <div style={{ background: 'rgba(244, 63, 94, 0.15)', padding: '10px', borderRadius: '50%', display: 'flex' }}>
                 <AlertTriangle size={24} />
@@ -595,15 +642,29 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
               <h3 style={{ color: '#fff', fontSize: '1.25rem', margin: 0 }}>Confirm Delete</h3>
             </div>
             
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '24px', lineHeight: 1.5 }}>
-              Are you sure you want to permanently delete <strong>{confirmDeleteModal.title}</strong>? This will remove {confirmDeleteModal.ids.length === 1 ? 'this draft' : `${confirmDeleteModal.ids.length} drafts`} completely from the database. This action cannot be undone.
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '18px', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete <strong>{confirmDeleteModal.title}</strong>? This will remove {confirmDeleteModal.ids?.length === 1 ? 'this draft' : (confirmDeleteModal.ids?.length ? `${confirmDeleteModal.ids.length} drafts` : 'all matching drafts')} completely from the database. This action cannot be undone.
             </p>
+
+            {deleteError && (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.4)',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                marginBottom: '18px',
+                color: '#fca5a5',
+                fontSize: '0.85rem',
+                lineHeight: 1.4
+              }}>
+                {deleteError}
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button 
                 className="btn btn-ghost" 
-                onClick={() => setConfirmDeleteModal(null)}
-                disabled={isActionLoading}
+                onClick={() => { setConfirmDeleteModal(null); setDeleteError(null); setIsActionLoading(false); }}
               >
                 Cancel
               </button>
@@ -614,7 +675,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
               >
                 <Trash2 size={16} />
-                {isActionLoading ? 'Deleting...' : `Delete ${confirmDeleteModal.ids.length > 1 ? `(${confirmDeleteModal.ids.length})` : ''}`}
+                {isActionLoading ? 'Deleting...' : `Delete ${confirmDeleteModal.ids?.length > 1 ? `(${confirmDeleteModal.ids.length})` : ''}`}
               </button>
             </div>
           </div>

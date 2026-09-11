@@ -89,8 +89,6 @@ export default function App() {
       setSchedulerStatus(scRes);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
