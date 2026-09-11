@@ -96,7 +96,7 @@ async def test_deduplication_engine(test_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_content_generator():
-    gen = ContentGenerator()
+    gen = ContentGenerator(openrouter_api_key="", anthropic_api_key="")
     rules = ContentRule(
         tone="Professional",
         word_count_min=500,
@@ -141,6 +141,7 @@ async def test_pipeline_execution(test_session: AsyncSession):
     await test_session.commit()
 
     pipeline = PublishingPipeline()
+    pipeline.generator = ContentGenerator(openrouter_api_key="", anthropic_api_key="")
     pipeline.research_engine.robots_cache["https://www.nature.com"] = type("MockRobots", (), {"can_fetch": lambda *a: True})()
     result = await pipeline.execute_run_for_topic(
         session=test_session,

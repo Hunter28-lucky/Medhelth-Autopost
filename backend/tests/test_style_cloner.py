@@ -4,7 +4,7 @@ from backend.models import ContentRule
 
 @pytest.mark.asyncio
 async def test_style_reference_in_generator():
-    generator = ContentGenerator()
+    generator = ContentGenerator(openrouter_api_key="", anthropic_api_key="")
     rule = ContentRule(
         name="Test Style",
         style_reference_sample="""

@@ -18,12 +18,14 @@ class ContentGenerator:
         anthropic_api_key: Optional[str] = None,
         anthropic_model: Optional[str] = None
     ):
-        self.ai_provider = ai_provider or settings.AI_PROVIDER
+        self.ai_provider = ai_provider if ai_provider is not None else settings.AI_PROVIDER
+        resolved_openrouter_key = openrouter_api_key if openrouter_api_key is not None else settings.OPENROUTER_API_KEY
         self.openrouter_client = OpenRouterClient(
-            api_key=openrouter_api_key or settings.OPENROUTER_API_KEY,
+            api_key=resolved_openrouter_key,
             model=openrouter_model or settings.OPENROUTER_MODEL
         )
-        self.anthropic_api_key = anthropic_api_key or settings.ANTHROPIC_API_KEY
+        resolved_anthropic_key = anthropic_api_key if anthropic_api_key is not None else settings.ANTHROPIC_API_KEY
+        self.anthropic_api_key = resolved_anthropic_key
         self.anthropic_model = anthropic_model or settings.ANTHROPIC_MODEL
         self.anthropic_client = anthropic.Anthropic(api_key=self.anthropic_api_key) if self.anthropic_api_key else None
 
@@ -60,13 +62,18 @@ class ContentGenerator:
         system_prompt = (
             "You are an expert medical science communicator, clinical journalist, and healthcare SEO specialist. "
             "Your task is to synthesize verified research into an engaging, authoritative, and original article draft. "
-            "\n\nCRITICAL CONSTRAINTS:\n"
+            "\n\nCRITICAL CONSTRAINTS & FORMAT RULES:\n"
             "1. GROUNDING ONLY: Never hallucinate clinical trials, percentages, patient outcomes, or medical claims. "
             "Every statistic or quote must originate directly from the provided source materials.\n"
             "2. ZERO PLAGIARISM: Do not copy phrases or verbatim sentences from sources. Synthesize and write in fresh, original prose.\n"
-            "3. SCIENTIFIC ACCURACY: Clearly delineate between preclinical animal studies, in-vitro experiments, Phase I/II safety trials, "
-            "and Phase III multi-center efficacy trials.\n"
-            "4. OUTPUT FORMAT: Respond ONLY with a valid JSON object matching the requested schema. No markdown formatting outside the JSON."
+            "3. PURE SEMANTIC WORDPRESS HTML: Use strictly <h2> for section headers and <p> for body paragraphs. "
+            "Do NOT include any <div> tags, inline style attributes, artificial callout boxes, blockquotes, or FAQ accordions inside body_html. "
+            "Keep the HTML completely clean and editorial, perfectly formatted for the WordPress Classic and Gutenberg editors.\n"
+            "4. 3-SECTION, 13-PARAGRAPH ARCHITECTURE (Target 550-750 words):\n"
+            "   - Section 1 (H2: '[Subject] A New Approach to [Field/Care]'): 3 concise paragraphs (what it is/creators, practical user/caregiver problem solved, shift from data surveillance to supportive care).\n"
+            "   - Section 2 (H2: '[Subject] Features and Connectivity' or 'Capabilities'): 5 concise paragraphs (cellular/wrist connectivity, GPS & emergency telemetry, continuous vital monitoring, screenless/ergonomic design, integrated carrier/adoption ease).\n"
+            "   - Section 3 (H2: '[Subject] and the Future of [Care/Field]'): 5 concise paragraphs (macro industry fragmentation, unified tool convergence, founder/clinical pedigree evolution, proactive routine awareness, concluding vision of patient independence).\n"
+            "5. OUTPUT FORMAT: Respond ONLY with a valid JSON object matching the requested schema. No markdown formatting outside the JSON."
         )
 
         user_prompt = f"""
@@ -74,25 +81,23 @@ TOPIC CATEGORY: {topic_name}
 
 CONTENT RULES & CONFIGURATION:
 - Tone/Voice: {rules.tone}
-- Target Word Count: {rules.word_count_min} to {rules.word_count_max} words
-- Heading Structure: {rules.heading_structure}
+- Target Word Count: 550 to 750 words (3 sections, 13 concise paragraphs total)
+- Heading Structure: Exactly 3 clean <h2> sections (No custom styled divs or inline CSS)
 - Target Audience & Reading Level: {rules.reading_level}
-- Include Key Takeaways Box: {rules.include_takeaways}
-- Include FAQ Section: {rules.include_faq}
-- Include Medical Disclaimer: {rules.include_disclaimer}
 - Style Guide Directives: {rules.style_guide_text}
 - Mandatory Disclaimer Text: {rules.disclaimer_text}
 
 CRITICAL YOAST SEO & READABILITY DIRECTIVES (MUST ACHIEVE ALL GREEN BULLETS):
-1. Choose a clear 2-4 word FOCUS KEYPHRASE (e.g. 'chest CT AI', 'cardiac mRNA therapy', 'oncology drug approval').
+1. Choose a clear 2-4 word FOCUS KEYPHRASE (e.g. 'chest CT AI', 'cardiac mRNA therapy', 'LTE health band', 'oncology drug approval').
 2. Placement: You MUST include the exact focus keyphrase in:
-   - The SEO title (near the beginning)
-   - The very first paragraph of the article (within first 100 words)
-   - At least one <h2> subheading
-   - The meta description (which must be between 135 and 155 characters)
+   - The SEO title / headline (frontloaded near the beginning)
+   - The very first sentence of the lead paragraph
+   - At least two <h2> subheadings
+   - The meta description (strictly 135 to 155 characters)
    - The URL slug (kebab-case)
-3. Readability & Transition Words: At least 30% of all sentences MUST start with or contain transition words (e.g. 'Furthermore', 'Consequently', 'In addition', 'However', 'Notably', 'Therefore', 'Specifically', 'As a result').
-4. Keep sentences concise (mostly under 20 words) and paragraphs under 150 words.
+   - The concluding summary sentence
+3. Readability & Natural Transitions: At least 30% of all sentences MUST smoothly weave in transition phrases (e.g. 'Instead of', 'These updates', 'As a result', 'With connected safety features', 'Rather than', 'Another advantage', 'Managing these separate solutions', 'However', 'The platform can also', 'Ultimately demonstrates how', 'Furthermore').
+4. Keep paragraphs short and scannable (2-4 sentences each, 40-65 words) and sentences mostly under 20 words.
 
 RESEARCH SOURCES PROVIDED FOR FACTUAL GROUNDING:
 {grounding_text}
@@ -100,20 +105,19 @@ RESEARCH SOURCES PROVIDED FOR FACTUAL GROUNDING:
 
         # Few-Shot Style Reference Cloner
         if getattr(rules, "style_reference_sample", None) and rules.style_reference_sample.strip():
-            font_choice = getattr(rules, "style_reference_font", "Inter, -apple-system, sans-serif")
             user_prompt += f"""
 
-FEW-SHOT VISUAL FORMAT & STYLE CLONING DIRECTIVE:
-The user has provided an explicit reference sample post/paragraph to strictly emulate:
+FEW-SHOT VISUAL FORMAT & WORDING PLACEMENT DIRECTIVE:
+The user has provided an explicit reference post to strictly emulate in structure, paragraph rhythm, and wording placement:
 === USER'S REFERENCE FORMAT TEMPLATE BEGIN ===
 {rules.style_reference_sample.strip()}
 === USER'S REFERENCE FORMAT TEMPLATE END ===
 
 CRITICAL STYLE CLONING INSTRUCTIONS:
-1. HEADER EMULATION: Inspect how the header, lead-in, and opening paragraph are styled in the reference template. Replicate that exact structure, badge tags, and intro rhythm.
-2. TYPOGRAPHY & FONT STYLING: Apply the typography hierarchy ({font_choice}), inline formatting (e.g., bold callouts, stylized sub-headings), and paragraph cadence seen in the reference template.
-3. FOOTER & CLOSING EMULATION: Inspect how the footer, citations, and closing disclaimer/callouts are structured in the reference template. Replicate that exact closing layout.
-4. Ground all factual statements in the provided research sources, but clothe them completely in this cloned visual and structural design.
+1. HEADLINE EMULATION: Formulate a punchy, active headline matching the style '[Subject] Launch New [Capability] From [Founders/Team].'
+2. 3-SECTION CADENCE: Follow the exact 3-section, 13-paragraph layout demonstrated in the template.
+3. WORDING PLACEMENT: Replicate the smooth introductory lead-in, feature-by-feature progression, and forward-looking synthesis seen in the template.
+4. PURE HTML: Generate strictly clean <h2> and <p> elements without any styled divs.
 """
 
         if deviation_angle_instruction:
@@ -126,7 +130,7 @@ Please generate a complete, structured JSON response with the following keys:
   "title": "Compelling, accurate H1 title (avoid clickbait)",
   "slug": "kebab-case-slug-containing-focus-keyphrase",
   "excerpt": "A concise 2-sentence executive summary (under 160 characters)",
-  "body_html": "Full article formatted in semantic HTML (using <h2>, <h3>, <p>, <ul>, <li>, <blockquote>). Include an introductory overview with keyphrase, deep analysis sections, clinical translation context, a structured <div class='key-takeaways'> if requested, and an FAQ section with schema markup if requested. Do not include <h1> in body_html.",
+  "body_html": "Full article formatted strictly with clean <h2> and <p> tags across 3 sections and 13 concise paragraphs (approx 550-750 words). Do NOT include <h1>, <div>, or inline style attributes in body_html.",
   "meta_title": "SEO Title (45-60 characters, keyword frontloaded)",
   "meta_description": "Compelling Meta Description (strictly 135-155 characters) containing the focus keyphrase",
   "tags": ["tag1", "tag2", "tag3", "tag4"],
@@ -217,46 +221,37 @@ Please generate a complete, structured JSON response with the following keys:
         ]
 
         body_html = f"""
-<p class="lead">Recent investigations published in leading peer-reviewed journals highlight pivotal developments in <strong>{focus_keyphrase}</strong>. Specifically, with increasing emphasis on translational healthcare efficacy, clinicians and researchers are evaluating targeted therapeutic protocols across diverse patient demographics.</p>
+<h2>{focus_keyphrase.title()} A New Approach to Patient Care</h2>
+<p>Created by leading medical researchers, {focus_keyphrase} represents a specialized healthcare development designed to support clinical workflows while improving everyday patient well-being. Specifically, this innovative approach focuses on proactive care rather than retrospective monitoring. It also combines targeted assessment, real-time communication, and longitudinal tracking in an accessible system that operates seamlessly across diverse clinical environments.</p>
 
-{angle_note}
+<p>Furthermore, the methodology aims to give healthcare teams greater clinical confidence while allowing patients to maintain their independence. Instead of requiring individuals to constantly manage complicated protocols, it provides essential diagnostic insights through a straightforward process. In addition, caregivers can record critical updates about symptoms, medications, and routine changes through simplified interfaces.</p>
 
-<div class="key-takeaways" style="background: #f0f7ff; border-left: 4px solid #0066cc; padding: 16px; margin: 20px 0; border-radius: 4px;">
-    <h3 style="margin-top: 0; color: #004080;">Key Takeaways in {focus_keyphrase.title()}</h3>
-    <ul>
-        <li>{"</li><li>".join(takeaways)}</li>
-    </ul>
-</div>
+<p>Consequently, these updates can help clinical teams understand subtle shifts in daily routines and recognize patterns that may require prompt attention. The approach focuses on useful information rather than overwhelming users with complicated data dashboards. As a result, the system is designed to function more like a supportive guardian than an intrusive surveillance tool.</p>
 
-<h2>Clinical Background and Mechanism of Action in {focus_keyphrase.title()}</h2>
-<p>Modern clinical workflows increasingly necessitate rapid, high-precision decision support systems. In addition, recent prospective assessments have evaluated the translational viability of these novel methodologies. Consequently, current multi-cohort validation minimizes inter-operator variability and optimizes overall diagnostic sensitivity.</p>
+<h2>{focus_keyphrase.title()} Features and Connectivity</h2>
+<p>In terms of technical capabilities, the {focus_keyphrase} framework includes built-in real-time connectivity, allowing practitioners to coordinate assistance directly when needed. This capability can be especially useful when patients are away from acute care settings. With connected safety features, users can quickly communicate with trusted contacts and clinical teams whenever they require intervention.</p>
 
-<blockquote>"The integration of rigorous algorithmic validation with bedside clinical expertise marks a decisive step forward in patient-specific care delivery."</blockquote>
+<p>Similarly, direct communication protocols add another essential layer of clinical protection. When an emergency occurs, the system can help transmit the user status to designated contacts. Meanwhile, it can also relay vital clinical telemetry alongside important observations, including heart rate metrics, activity levels, and immediate functional status.</p>
 
-<h2>Comparative Analysis of Trial Findings</h2>
-<p>Furthermore, according to findings reported by <em>{primary_article.get('source', 'investigators')}</em>, key trial metrics demonstrated substantial improvements across primary endpoints. Crucially, the adverse event rates remained well within the anticipated therapeutic window, underscoring both patient safety and therapeutic potential.</p>
-<p>However, investigators emphasized that long-term prospective monitoring remains essential to observe durability across diverse patient cohorts. Therefore, multi-year registry tracking will provide essential confirmation.</p>
+<p>Additionally, the platform continuously monitors several aspects of daily physiological activity. Sleep quality, movement trends, breathing patterns, and heart rate parameters can provide useful information about changes in a person's routine. Rather than simply collecting large amounts of raw data, the system aims to identify meaningful developments that families and physicians can understand and act upon.</p>
 
-<h2>Regulatory Implications and Future Directions in {focus_keyphrase.title()}</h2>
-<p>As health regulatory agencies establish clearer guidelines for clinical interventions, healthcare systems must prepare for infrastructural integration. As a result, standardizing data pipelines and adhering to rigorous clinical trial designs will be essential for widespread adoption.</p>
+<p>Moreover, the streamlined ergonomic design plays an important role in the overall user experience. Without complex interfaces demanding constant attention, users can remain focused on their daily surroundings. Therefore, this design makes the technology more comfortable for older adults and individuals who prefer less screen-based complexity.</p>
 
-<h2>Frequently Asked Questions</h2>
-<div class="faq-item">
-    <h3>What makes this development in {focus_keyphrase} significant?</h3>
-    <p>Undoubtedly, it provides peer-reviewed validation across multi-center cohorts rather than localized test datasets, demonstrating real-world clinical feasibility.</p>
-</div>
-<div class="faq-item">
-    <h3>When can clinicians expect widespread adoption?</h3>
-    <p>Ultimately, phased institutional rollouts are underway, with broader healthcare system integration anticipated following confirmation of Phase III longitudinal endpoints.</p>
-</div>
+<p>Another advantage is the integrated implementation approach. Specifically, healthcare organizations do not need to manage complicated secondary infrastructure for network connectivity. Consequently, this makes the technology easier to adopt for families and health systems looking for a convenient, dependable safety solution.</p>
 
-<div class="medical-disclaimer" style="background: #fff8e5; border: 1px solid #ffcc00; padding: 12px; margin-top: 24px; font-size: 0.9em; border-radius: 4px;">
-    <strong>Medical Disclaimer:</strong> {rules.disclaimer_text}
-</div>
+<h2>{focus_keyphrase.title()} and the Future of Healthcare</h2>
+<p>Ultimately, the emergence of {focus_keyphrase} reflects a broader movement toward technology that supports caregivers, clinicians, and their families. Many households currently depend on multiple separate health apps, communication tools, emergency devices, and disparate records. However, managing these separate solutions can create additional work for caregivers who already have demanding responsibilities.</p>
+
+<p>To address this challenge, this integrated framework attempts to bring several essential functions together. Health monitoring, emergency communication, location tracking, and observational logging can operate as part of one connected system. In fact, this integrated approach helps reduce the mental burden associated with coordinating daily care.</p>
+
+<p>The investigators' extensive experience in translational science also provides a strong foundation for developing dependable caregiving tools. However, this clinical initiative takes a distinct direction by focusing on family connection and patient safety. For this reason, its goal is not simply to track passive metrics but to provide meaningful information that helps caregivers understand how their loved ones are doing.</p>
+
+<p>Furthermore, the platform can encourage better communication between care teams, caregivers, and family members. Instead of relying only on occasional clinical checkups or manual logs, families can receive useful insights into changing health trends. This can help them respond earlier when something appears unusual.</p>
+
+<p>Looking forward, healthcare leaders intend to continue developing human-focused solutions for long-term patient care. With its combination of connectivity, physiological sensing, and safety capabilities, the system represents a thoughtful direction for modern healthcare technology. As a result, {focus_keyphrase} demonstrates how medical innovations can move beyond basic monitoring and become practical tools for supporting families, encouraging independence, and creating stronger connections between loved ones.</p>
 """
-        # Apply style reference font formatting if provided
         font_style = getattr(rules, "style_reference_font", "")
-        if font_style and font_style != "default":
+        if font_style and font_style not in ("default", "system-ui, -apple-system, sans-serif"):
             body_html = f'<div style="font-family: {font_style}; line-height: 1.6;">\n{body_html}\n</div>'
 
         sources = []

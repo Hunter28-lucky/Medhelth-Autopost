@@ -156,6 +156,15 @@ web post/
 - Seeded via `backend/seed_user_categories.py` into `backend/publisher.db`.
 - Covers 74 categories including: *Cardiovascular, Oncology, Artificial Intelligence, Endocrinology, Telemedicine, Digital Health Transformation, Genomics, Nanotechnology, Health Wearables, Assistive Devices*, etc.
 
+### F. Standardized Editorial Blueprint (`example post.md`)
+- **Canonical Reference**: [`example post.md`](file:///Users/krishyogi/Desktop/web%20post/example%20post.md) holds the exact reference article (`Luffu Link Launch New LTE Health Band From Fitbit Founders.`).
+- **Clean Semantic WordPress HTML**: Output strictly contains clean `<h2>` section headers and `<p>` body paragraphs. Zero custom styled `<div>` containers, no inline CSS, and no artificial callout blocks in `body_html` so WordPress Classic & Gutenberg editors render native, clean typography.
+- **3-Section, 13-Paragraph Cadence (~550–750 words)**:
+  - Section 1: `[Subject] A New Approach to [Problem/Care]` (3 paragraphs: What & who, user problem solved, shift from surveillance to supportive care).
+  - Section 2: `[Subject] Features and Connectivity` (5 paragraphs: LTE/wrist capability, GPS & telemetry, continuous vital monitoring, screenless ergonomics, integrated carrier ease).
+  - Section 3: `[Subject] and the Future of [Field/Care]` (5 paragraphs: Macro industry shift, unified tool convergence, founder background comparison, proactive communication, closing vision of patient independence).
+- **Yoast SEO 28.4 Compliance**: Frontloaded focus keyphrase, $\ge 30\%$ natural transition phrases (*"Instead of"*, *"These updates"*, *"As a result"*, *"Rather than"*, *"Another advantage"*, *"However"*, *"Ultimately demonstrates how"*), scoring 100/100 on Readability and SEO.
+
 ---
 
 ## 5. Solved Gotchas & Important Lessons
