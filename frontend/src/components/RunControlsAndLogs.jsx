@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Play, Clock, Calendar, CheckCircle, AlertCircle, RefreshCw, 
-  Terminal, ChevronRight, ChevronDown, ListFilter, ShieldCheck, Zap 
+  Play, Clock, Calendar, RefreshCw, 
+  Terminal, ChevronRight, ChevronDown, Zap 
 } from 'lucide-react';
 
 export default function RunControlsAndLogs({ 

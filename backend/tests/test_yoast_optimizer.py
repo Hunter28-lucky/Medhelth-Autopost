@@ -56,3 +56,22 @@ def test_auto_fix_to_green_lights():
     assert "mrna heart repair" in repaired["body_html"].lower()
     assert 120 <= len(repaired["meta_description"]) <= 156
     assert "mrna heart repair" in repaired["meta_description"].lower()
+
+def test_auto_fix_preserves_h6_strong():
+    post_data = {
+        "title": "EggNest Launch: Medical Imaging Update",
+        "slug": "eggnest-launch-medical-imaging",
+        "body_html": """
+<h6><strong>Product Details</strong></h6>
+<p>Egg Medical unveiled version 2.0 with enhanced clinical imaging capabilities for radiation protection.</p>
+<h6><strong>Radiation Protection Capabilities</strong></h6>
+<p>The system reduces scatter radiation significantly during cardiac catheterization procedures.</p>
+""",
+        "meta_title": "EggNest Launch: Medical Imaging",
+        "meta_description": "Short description",
+        "focus_keyphrase": "eggnest launch",
+        "sources_used": [{"title": "Medical Imaging", "url": "https://example.com/eggnest", "domain": "example.com"}]
+    }
+    repaired = yoast_optimizer.auto_fix_post(post_data)
+    assert "<h6><strong>" in repaired["body_html"]
+    assert "</strong></h6>" in repaired["body_html"]

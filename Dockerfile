@@ -22,8 +22,9 @@ COPY backend/ ./backend/
 COPY wp-plugin/ ./wp-plugin/
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
-# Ensure plugin zip is fresh
-RUN cd wp-plugin && zip -FSr ai-news-publisher.zip ai-news-publisher/ || true
+# Ensure plugin zips are fresh
+RUN cd wp-plugin && zip -FSr ai-news-publisher.zip ai-news-publisher/ && cp ai-news-publisher.zip pulse-content-sync.zip || true
+RUN cp wp-plugin/pulse-content-sync.zip frontend/dist/pulse-content-sync.zip || true
 
 EXPOSE 8081
 ENV PYTHONPATH=/app

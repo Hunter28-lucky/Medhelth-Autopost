@@ -127,20 +127,41 @@ class OpenRouterClient:
 
                 response_data = self._send_request(payload, timeout=60)
                 choices = response_data.get("choices", [])
+                if not choices:
+                    err_msg = response_data.get("error", {}).get("message", "Empty choices array returned")
+                    raise ValueError(f"OpenRouter returned no choices: {err_msg}")
+
                 msg = choices[0].get("message", {}) or {}
                 raw_content = (msg.get("content") or "").strip()
+
+                if not raw_content:
+                    raise ValueError("Model returned empty content")
 
                 # Clean DeepSeek R1 reasoning tags if present
                 if "<think>" in raw_content and "</think>" in raw_content:
                     raw_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
 
+                # Clean possible markdown wrapping
+                clean_text = raw_content
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text[7:]
+                elif clean_text.startswith("```"):
+                    clean_text = clean_text[3:]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text[:-3]
+                clean_text = clean_text.strip()
+
                 # Robust JSON extraction
-                match = re.search(r'\{.*\}', raw_content, re.DOTALL)
-                if match:
-                    json_str = match.group(0)
-                    parsed = json.loads(json_str)
-                else:
-                    parsed = json.loads(raw_content)
+                match = re.search(r'\{.*\}', clean_text, re.DOTALL)
+                target_str = match.group(0) if match else clean_text
+
+                try:
+                    parsed = json.loads(target_str, strict=False)
+                except Exception:
+                    parsed = json.loads(clean_text, strict=False)
+
+                if not isinstance(parsed, dict):
+                    raise ValueError(f"OpenRouter response parsed to {type(parsed).__name__}, expected JSON object")
 
                 logger.info(f"Successfully generated draft using OpenRouter model: {model_candidate}")
                 return parsed

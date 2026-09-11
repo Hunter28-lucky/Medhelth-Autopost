@@ -33,15 +33,15 @@ class ContentRule(Base):
     reading_level = Column(String(100), default="General Public (Clear, Accessible)")
     
     # Length & Structure
-    word_count_min = Column(Integer, default=800)
-    word_count_max = Column(Integer, default=1200)
-    heading_structure = Column(String(255), default="H1 Title, 3-4 H2 Sections, H3 Sub-points")
+    word_count_min = Column(Integer, default=450)
+    word_count_max = Column(Integer, default=520)
+    heading_structure = Column(String(255), default="<h6><strong>Heading Title</strong></h6>")
     
     # Components to include
-    include_takeaways = Column(Boolean, default=True)
-    include_faq = Column(Boolean, default=True)
-    include_disclaimer = Column(Boolean, default=True)
-    include_quotes = Column(Boolean, default=True)
+    include_takeaways = Column(Boolean, default=False)
+    include_faq = Column(Boolean, default=False)
+    include_disclaimer = Column(Boolean, default=False)
+    include_quotes = Column(Boolean, default=False)
     include_sources = Column(Boolean, default=True)
     
     # Disclaimers & Style Guide

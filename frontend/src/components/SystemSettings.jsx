@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Key, Globe, Shield, Save, CheckCircle2, AlertCircle, RefreshCw, 
-  ExternalLink, Download, Sparkles, Cpu, Link as LinkIcon 
+  Globe, Shield, Save, CheckCircle2, AlertCircle, RefreshCw, 
+  Download, Sparkles, Cpu 
 } from 'lucide-react';
 
 export default function SystemSettings({ settings, onSaveSettings }) {

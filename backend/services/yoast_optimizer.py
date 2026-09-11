@@ -463,8 +463,18 @@ class YoastSeoOptimizer:
         h2s = soup.find_all(['h2', 'h3', 'h4', 'h5', 'h6'])
         has_kw_in_h2 = any(focus_keyphrase.lower() in h.get_text().lower() for h in h2s)
         if not has_kw_in_h2 and h2s:
-            # Update first H2 to include keyphrase
-            h2s[0].string = f"{h2s[0].get_text()} in {focus_keyphrase.title()}"
+            target_h = h2s[0]
+            strong_tag = target_h.find('strong')
+            new_title_text = f"{target_h.get_text().strip()} in {focus_keyphrase.title()}"
+            if strong_tag:
+                strong_tag.string = new_title_text
+            elif target_h.name == 'h6':
+                target_h.string = ""
+                s_tag = soup.new_tag("strong")
+                s_tag.string = new_title_text
+                target_h.append(s_tag)
+            else:
+                target_h.string = new_title_text
 
         # 3. Fix Outbound Links (Embed hyperlinks to sources directly in body if missing)
         existing_links = soup.find_all('a')

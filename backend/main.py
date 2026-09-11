@@ -1,3 +1,4 @@
+import os
 import re
 import datetime
 import logging
@@ -96,9 +97,9 @@ async def seed_initial_data():
                 is_active=True,
                 tone="Professional & Journalistic",
                 reading_level="General Public with High School Education",
-                word_count_min=550,
-                word_count_max=750,
-                heading_structure="H1 Title, 3 Clean H2 Sections (Pure Semantic HTML)",
+                word_count_min=450,
+                word_count_max=520,
+                heading_structure="<h6><strong>Heading Title</strong></h6>",
                 include_takeaways=False,
                 include_faq=False,
                 include_disclaimer=False,
@@ -123,7 +124,7 @@ async def lifespan(app: FastAPI):
         scheduler_service.start()
     yield
     # Shutdown
-    scheduler_service.stop()
+    scheduler_service.shutdown()
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -671,7 +672,9 @@ async def toggle_scheduler(enable: bool = Query(...)):
 async def download_wordpress_plugin():
     from fastapi.responses import FileResponse
     from backend.config import BASE_DIR
-    plugin_zip_path = BASE_DIR.parent / "wp-plugin" / "ai-news-publisher.zip"
+    plugin_zip_path = BASE_DIR.parent / "wp-plugin" / "pulse-content-sync.zip"
+    if not plugin_zip_path.exists():
+        plugin_zip_path = BASE_DIR.parent / "wp-plugin" / "ai-news-publisher.zip"
     if not plugin_zip_path.exists():
         raise HTTPException(status_code=404, detail="Plugin zip archive not found")
     return FileResponse(

@@ -41,13 +41,13 @@ class ContentRuleBase(BaseModel):
     is_active: bool = True
     tone: str = "Professional & Informative"
     reading_level: str = "General Public (Clear, Accessible)"
-    word_count_min: int = Field(800, ge=300)
-    word_count_max: int = Field(1200, le=5000)
-    heading_structure: str = "H1 Title, 3-4 H2 Sections, H3 Sub-points"
-    include_takeaways: bool = True
-    include_faq: bool = True
-    include_disclaimer: bool = True
-    include_quotes: bool = True
+    word_count_min: int = Field(450, ge=300)
+    word_count_max: int = Field(520, le=5000)
+    heading_structure: str = "<h6><strong>Heading Title</strong></h6>"
+    include_takeaways: bool = False
+    include_faq: bool = False
+    include_disclaimer: bool = False
+    include_quotes: bool = False
     include_sources: bool = True
     disclaimer_text: str = "Disclaimer: This article is for informational purposes only and does not constitute medical advice or formal clinical diagnosis. Consult a qualified healthcare professional before making health-related decisions."
     style_guide_text: str = "Maintain scientific accuracy. Avoid sensational headlines like 'miracle cure' or 'breakthrough.' Always clearly state clinical trial phases and acknowledge sample sizes or study limitations."

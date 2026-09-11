@@ -135,7 +135,8 @@ class PublishingPipeline:
                 log_step("PRE_DEDUP_NOTE", f"Pre-generation note: {dup_reason}. Proceeding with forced re-angling directive.", "info")
 
             # 6. AI Generation Phase
-            log_step("AI_GENERATION", f"Synthesizing draft via Claude ({settings.ANTHROPIC_MODEL}). Target words: {rules.word_count_min}-{rules.word_count_max}...")
+            provider_desc = f"OpenRouter Free AI ({settings.OPENROUTER_MODEL})" if settings.AI_PROVIDER == "openrouter" else f"Claude ({settings.ANTHROPIC_MODEL})"
+            log_step("AI_GENERATION", f"Synthesizing draft via {provider_desc}. Target words: {rules.word_count_min}-{rules.word_count_max}...")
             re_angle_directive = None
             if is_dup:
                 re_angle_directive = "This story has had prior coverage. You MUST adopt a fresh, distinct clinical perspective focusing on patient accessibility, health economics, and ongoing longitudinal safety questions."

@@ -48,21 +48,31 @@ class PublishingScheduler:
     def start(self, interval_hours: Optional[int] = None):
         hours = interval_hours or settings.SCHEDULER_INTERVAL_HOURS
         if not self.is_running:
-            self.scheduler.add_job(
-                self._run_scheduled_cycle,
-                trigger=IntervalTrigger(hours=hours),
-                id=self.job_id,
-                replace_existing=True
-            )
-            self.scheduler.start()
+            if not self.scheduler.running:
+                self.scheduler.add_job(
+                    self._run_scheduled_cycle,
+                    trigger=IntervalTrigger(hours=hours),
+                    id=self.job_id,
+                    replace_existing=True
+                )
+                self.scheduler.start()
+            else:
+                self.scheduler.resume()
             self.is_running = True
             logger.info(f"Scheduler started with interval of {hours} hours.")
 
     def stop(self):
         if self.is_running:
+            if self.scheduler.running:
+                self.scheduler.pause()
+            self.is_running = False
+            logger.info("Scheduler paused.")
+
+    def shutdown(self):
+        if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
             self.is_running = False
-            logger.info("Scheduler stopped.")
+            logger.info("Scheduler cleanly shut down.")
 
     def update_interval(self, hours: int):
         if self.is_running:

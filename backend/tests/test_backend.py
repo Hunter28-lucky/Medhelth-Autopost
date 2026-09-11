@@ -197,3 +197,17 @@ async def test_single_and_bulk_delete(test_session: AsyncSession):
     res = await test_session.execute(stmt)
     await test_session.commit()
     assert res.rowcount == 2
+
+@pytest.mark.asyncio
+async def test_scheduler_lifecycle():
+    from backend.services.scheduler import PublishingScheduler
+    sched = PublishingScheduler()
+    sched.start(interval_hours=2)
+    assert sched.is_running is True
+    sched.stop()
+    assert sched.is_running is False
+    # Re-starting should succeed without SchedulerAlreadyRunningError
+    sched.start(interval_hours=2)
+    assert sched.is_running is True
+    sched.shutdown()
+    assert sched.is_running is False

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sliders, Save, CheckCircle2, ShieldCheck, Sparkles, BookOpen, AlertTriangle } from 'lucide-react';
+import { Save, CheckCircle2, ShieldCheck, Sparkles, BookOpen, AlertTriangle } from 'lucide-react';
 
 export default function ContentRulesEditor({ rules, onSaveRules }) {
   const [formData, setFormData] = useState(rules || {});

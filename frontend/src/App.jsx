@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Activity, Layers, Sliders, FileText, PlayCircle, Settings as SettingsIcon, 
-  Globe, Clock, Download, RefreshCw, AlertCircle, ExternalLink, Sparkles,
-  Shield, Lock, LogOut, Eye, EyeOff, CheckCircle2
+  Globe, AlertCircle, ExternalLink, Sparkles,
+  Shield, Lock, LogOut, Eye, EyeOff
 } from 'lucide-react';
 
 import { getDeveloperToken, setDeveloperToken, removeDeveloperToken } from './apiClient';
@@ -31,7 +31,6 @@ export default function App() {
   const [runLogs, setRunLogs] = useState([]);
   const [settings, setSettings] = useState(null);
   const [schedulerStatus, setSchedulerStatus] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Check developer session on startup
   useEffect(() => {
@@ -48,12 +47,11 @@ export default function App() {
           const data = await res.json();
           setIsAuthenticated(true);
           setDeveloperName(data.developer_name || 'Krish Goswami');
-          fetchAllData();
         } else {
           removeDeveloperToken();
           setIsAuthenticated(false);
         }
-      } catch (err) {
+      } catch (_err) {
         removeDeveloperToken();
         setIsAuthenticated(false);
       } finally {

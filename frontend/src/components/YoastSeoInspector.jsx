@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CheckCircle2, AlertCircle, AlertTriangle, Sparkles, RefreshCw, 
-  ChevronDown, ChevronRight, Wand2, ShieldCheck, Tag, ExternalLink 
-} from 'lucide-react';
+import { CheckCircle2, Wand2 } from 'lucide-react';
 
 export default function YoastSeoInspector({ draft, onAutoFixSuccess }) {
   const [auditData, setAuditData] = useState(null);

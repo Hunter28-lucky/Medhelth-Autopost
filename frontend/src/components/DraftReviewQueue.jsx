@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, Search, 
-  Eye, AlertTriangle, Link as LinkIcon, Sparkles, Globe, X, Send,
-  Trash2, CheckSquare, Square
+  FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, 
+  Eye, AlertTriangle, Sparkles, X, Send, Trash2
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 

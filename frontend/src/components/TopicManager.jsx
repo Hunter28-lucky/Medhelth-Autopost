@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Plus, Upload, Play, Edit3, Trash2, Globe, ShieldAlert, CheckCircle2, 
-  Search, Sparkles, Sliders, X, AlertCircle 
+  Search, X, AlertCircle 
 } from 'lucide-react';
 
 export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
