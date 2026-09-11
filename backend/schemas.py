@@ -142,8 +142,18 @@ class GeneratedPostResponse(BaseModel):
         from_attributes = True
 
 class DraftReviewAction(BaseModel):
-    action: str = Field(..., description="'approve', 'reject', 'regenerate', or 'push_to_wp'")
+    action: str = Field(..., description="'approve', 'reject', 'delete', 'regenerate', or 'push_to_wp'")
     feedback: Optional[str] = Field(None, description="Optional instruction/angle redirection if regenerating")
+
+class DraftBulkDeleteRequest(BaseModel):
+    post_ids: Optional[List[int]] = Field(default_factory=list, description="List of post IDs to delete")
+    delete_all: Optional[bool] = Field(False, description="If true, deletes all posts matching optional status")
+    status: Optional[str] = Field(None, description="Optional status filter for delete_all (e.g. DUPLICATE_FLAGGED)")
+
+class DraftBulkDeleteResponse(BaseModel):
+    success: bool
+    deleted_count: int
+    message: str
 
 # --- Run & Scheduler Schemas ---
 class RunTriggerRequest(BaseModel):

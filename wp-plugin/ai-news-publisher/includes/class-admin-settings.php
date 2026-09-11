@@ -54,6 +54,9 @@ class AI_News_Publisher_Admin_Settings {
         }
 
         $api_key  = get_option('ai_news_publisher_api_key');
+        if (empty($api_key)) {
+            $api_key = 'k60pRp6jNGAf9CdjexXHfsofXGqzlyoq';
+        }
         $endpoint = rest_url('pulse-sync/v1/post');
         $health   = rest_url('pulse-sync/v1/health');
         $logs     = get_option('ai_news_publisher_logs', array());

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, Search, 
-  Eye, AlertTriangle, Link as LinkIcon, Sparkles, Globe, X, Send 
+  Eye, AlertTriangle, Link as LinkIcon, Sparkles, Globe, X, Send,
+  Trash2, CheckSquare, Square
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 
@@ -11,11 +12,82 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
   const [regeneratePrompt, setRegeneratePrompt] = useState('');
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showRegenBox, setShowRegenBox] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState(null);
 
   const filteredDrafts = drafts.filter(d => {
     if (statusFilter === 'ALL') return true;
     return d.status === statusFilter;
   });
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const visibleIds = filteredDrafts.map(d => d.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const handleDeleteSingle = (postId, title) => {
+    setConfirmDeleteModal({
+      type: 'single',
+      ids: [postId],
+      title: title || `Draft #${postId}`
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    setConfirmDeleteModal({
+      type: 'bulk',
+      ids: selectedIds,
+      title: `${selectedIds.length} selected draft(s)`
+    });
+  };
+
+  const handleDeleteAllFiltered = () => {
+    const visibleIds = filteredDrafts.map(d => d.id);
+    if (visibleIds.length === 0) return;
+    const filterName = statusFilter === 'ALL' ? 'all' : statusFilter.toLowerCase().replace('_', ' ');
+    setConfirmDeleteModal({
+      type: 'all_filtered',
+      ids: visibleIds,
+      title: `all ${visibleIds.length} ${filterName} draft(s)`
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmDeleteModal || !confirmDeleteModal.ids.length) return;
+    setIsActionLoading(true);
+    try {
+      const res = await fetch('/api/drafts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_ids: confirmDeleteModal.ids })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Delete failed');
+
+      setSelectedIds(prev => prev.filter(id => !confirmDeleteModal.ids.includes(id)));
+      if (selectedDraft && confirmDeleteModal.ids.includes(selectedDraft.id)) {
+        setSelectedDraft(null);
+      }
+      setConfirmDeleteModal(null);
+      onRefresh();
+    } catch (err) {
+      alert('Error deleting drafts: ' + err.message);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   const handleAction = async (postId, action, feedback = null) => {
     setIsActionLoading(true);
@@ -37,7 +109,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
       } else if (action === 'regenerate') {
         setSelectedDraft(null);
         setShowRegenBox(false);
-      } else if (action === 'reject' || action === 'approve') {
+      } else if (action === 'reject' || action === 'approve' || action === 'delete') {
         setSelectedDraft(null);
       }
     } catch (err) {
@@ -120,6 +192,78 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
         </div>
       </div>
 
+      {/* Bulk Action & Management Toolbar */}
+      {filteredDrafts.length > 0 && (
+        <div 
+          className="glass-card" 
+          style={{ 
+            padding: '12px 20px', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            flexWrap: 'wrap', 
+            gap: '12px',
+            background: 'rgba(15, 23, 42, 0.65)',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', fontSize: '0.875rem', userSelect: 'none' }}>
+              <input 
+                type="checkbox" 
+                checked={filteredDrafts.length > 0 && filteredDrafts.every(d => selectedIds.includes(d.id))}
+                onChange={toggleSelectAll}
+                style={{ width: '16px', height: '16px', accentColor: '#00f0ff', cursor: 'pointer' }}
+              />
+              <span>Select All ({filteredDrafts.length})</span>
+            </label>
+
+            {selectedIds.length > 0 && (
+              <>
+                <span className="badge badge-rose" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
+                  {selectedIds.length} Selected
+                </span>
+                <button 
+                  className="btn btn-danger" 
+                  style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={handleDeleteSelected}
+                  disabled={isActionLoading}
+                >
+                  <Trash2 size={14} /> Delete Selected ({selectedIds.length})
+                </button>
+                <button 
+                  className="btn btn-ghost" 
+                  style={{ padding: '6px 10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}
+                  onClick={() => setSelectedIds([])}
+                >
+                  Deselect All
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button 
+              className="btn btn-ghost" 
+              style={{ 
+                color: '#f43f5e', 
+                padding: '6px 12px', 
+                fontSize: '0.8rem', 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                border: '1px solid rgba(244, 63, 94, 0.2)' 
+              }}
+              onClick={handleDeleteAllFiltered}
+              disabled={isActionLoading}
+              title="Delete all drafts currently matching this filter"
+            >
+              <Trash2 size={14} /> Delete All {statusFilter === 'ALL' ? 'Drafts' : statusFilter.replace('_', ' ')} ({filteredDrafts.length})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Drafts List */}
       {filteredDrafts.length === 0 ? (
         <div className="glass-card" style={{ padding: '48px', textAlign: 'center' }}>
@@ -138,14 +282,25 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
               style={{ 
                 padding: '18px 24px', 
                 display: 'flex', 
-                justifyContent: 'space-between', 
                 alignItems: 'center', 
                 flexWrap: 'wrap', 
                 gap: '16px',
-                borderLeft: draft.status === 'SENT_TO_WP' ? '4px solid #10b981' : (draft.status === 'DUPLICATE_FLAGGED' ? '4px solid #f43f5e' : '4px solid #00f0ff')
+                borderLeft: draft.status === 'SENT_TO_WP' ? '4px solid #10b981' : (draft.status === 'DUPLICATE_FLAGGED' ? '4px solid #f43f5e' : '4px solid #00f0ff'),
+                background: selectedIds.includes(draft.id) ? 'rgba(0, 240, 255, 0.04)' : undefined
               }}
             >
-              <div style={{ flex: 1, minWidth: '280px' }}>
+              {/* Card Selection Checkbox */}
+              <div style={{ display: 'flex', alignItems: 'center', paddingRight: '4px' }}>
+                <input 
+                  type="checkbox"
+                  checked={selectedIds.includes(draft.id)}
+                  onChange={() => toggleSelect(draft.id)}
+                  style={{ width: '18px', height: '18px', accentColor: '#00f0ff', cursor: 'pointer' }}
+                  title="Select draft for bulk actions"
+                />
+              </div>
+
+              <div style={{ flex: 1, minWidth: '260px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                   {getStatusBadge(draft.status)}
                   {getSimilarityBadge(draft.similarity_score, draft.similarity_status)}
@@ -187,7 +342,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button 
                   className="btn btn-secondary" 
                   style={{ padding: '8px 14px' }}
@@ -198,7 +353,7 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
 
                 {draft.status !== 'SENT_TO_WP' ? (
                   <button 
-                    className="btn btn-primary"
+                    className="btn btn-primary" 
                     style={{ padding: '8px 14px' }}
                     onClick={() => handleAction(draft.id, 'push_to_wp')}
                     disabled={isActionLoading}
@@ -210,12 +365,30 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                     href={draft.wp_edit_url || '#'} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="btn btn-secondary"
+                    className="btn btn-secondary" 
                     style={{ padding: '8px 14px', color: '#38bdf8' }}
                   >
                     <ExternalLink size={15} /> Edit in WP
                   </a>
                 )}
+
+                {/* Normal / Single Delete Button */}
+                <button 
+                  className="btn btn-ghost" 
+                  style={{ 
+                    color: '#f43f5e', 
+                    padding: '8px 12px', 
+                    border: '1px solid rgba(244, 63, 94, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                  onClick={() => handleDeleteSingle(draft.id, draft.title)}
+                  disabled={isActionLoading}
+                  title="Permanently delete this draft"
+                >
+                  <Trash2 size={15} /> Delete
+                </button>
               </div>
             </div>
           ))}
@@ -362,19 +535,35 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                 
                 {!showRegenBox && (
                   <button 
-                    className="btn btn-secondary"
+                    className="btn btn-secondary" 
                     onClick={() => setShowRegenBox(true)}
                     disabled={isActionLoading}
                   >
                     <RefreshCw size={16} /> Re-Angle
                   </button>
                 )}
+
+                <button 
+                  className="btn btn-ghost"
+                  style={{ 
+                    color: '#f43f5e', 
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px' 
+                  }}
+                  onClick={() => handleDeleteSingle(selectedDraft.id, selectedDraft.title)}
+                  disabled={isActionLoading}
+                  title="Permanently delete this draft"
+                >
+                  <Trash2 size={16} /> Delete Draft
+                </button>
               </div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 {selectedDraft.status !== 'SENT_TO_WP' ? (
                   <button 
-                    className="btn btn-primary"
+                    className="btn btn-primary" 
                     onClick={() => handleAction(selectedDraft.id, 'push_to_wp')}
                     disabled={isActionLoading}
                   >
@@ -391,6 +580,43 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                   </a>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteModal && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }}>
+          <div className="modal-container" style={{ maxWidth: '460px', padding: '28px', border: '1px solid rgba(244, 63, 94, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#f43f5e' }}>
+              <div style={{ background: 'rgba(244, 63, 94, 0.15)', padding: '10px', borderRadius: '50%', display: 'flex' }}>
+                <AlertTriangle size={24} />
+              </div>
+              <h3 style={{ color: '#fff', fontSize: '1.25rem', margin: 0 }}>Confirm Delete</h3>
+            </div>
+            
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '24px', lineHeight: 1.5 }}>
+              Are you sure you want to permanently delete <strong>{confirmDeleteModal.title}</strong>? This will remove {confirmDeleteModal.ids.length === 1 ? 'this draft' : `${confirmDeleteModal.ids.length} drafts`} completely from the database. This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => setConfirmDeleteModal(null)}
+                disabled={isActionLoading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={executeDelete}
+                disabled={isActionLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px' }}
+              >
+                <Trash2 size={16} />
+                {isActionLoading ? 'Deleting...' : `Delete ${confirmDeleteModal.ids.length > 1 ? `(${confirmDeleteModal.ids.length})` : ''}`}
+              </button>
             </div>
           </div>
         </div>

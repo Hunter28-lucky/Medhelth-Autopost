@@ -151,3 +151,49 @@ async def test_pipeline_execution(test_session: AsyncSession):
     assert result["success"] is True
     assert "post_id" in result
     assert result["status"] == "PENDING_REVIEW"
+
+@pytest.mark.asyncio
+async def test_single_and_bulk_delete(test_session: AsyncSession):
+    # 1. Create test posts
+    p1 = GeneratedPost(
+        title="Draft Delete Test 1",
+        slug="draft-delete-test-1",
+        body_html="<p>Sample</p>",
+        similarity_score=0.1,
+        similarity_status="UNIQUE",
+        status="PENDING_REVIEW"
+    )
+    p2 = GeneratedPost(
+        title="Draft Delete Test 2",
+        slug="draft-delete-test-2",
+        body_html="<p>Sample</p>",
+        similarity_score=0.9,
+        similarity_status="DUPLICATE_FLAGGED",
+        status="DUPLICATE_FLAGGED"
+    )
+    p3 = GeneratedPost(
+        title="Draft Delete Test 3",
+        slug="draft-delete-test-3",
+        body_html="<p>Sample</p>",
+        similarity_score=0.9,
+        similarity_status="DUPLICATE_FLAGGED",
+        status="DUPLICATE_FLAGGED"
+    )
+    test_session.add_all([p1, p2, p3])
+    await test_session.commit()
+    await test_session.refresh(p1)
+    await test_session.refresh(p2)
+    await test_session.refresh(p3)
+
+    # 2. Test single delete
+    await test_session.delete(p1)
+    await test_session.commit()
+    check_p1 = await test_session.get(GeneratedPost, p1.id)
+    assert check_p1 is None
+
+    # 3. Test bulk delete by IDs
+    from sqlalchemy import delete
+    stmt = delete(GeneratedPost).where(GeneratedPost.id.in_([p2.id, p3.id]))
+    res = await test_session.execute(stmt)
+    await test_session.commit()
+    assert res.rowcount == 2

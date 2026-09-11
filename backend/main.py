@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
@@ -16,6 +16,7 @@ from backend.schemas import (
     TopicCreate, TopicUpdate, TopicResponse, TopicBulkImport,
     ContentRuleResponse, ContentRuleUpdate,
     GeneratedPostResponse, DraftReviewAction,
+    DraftBulkDeleteRequest, DraftBulkDeleteResponse,
     RunTriggerRequest, RunLogResponse,
     SettingsResponse, SettingsUpdate,
     AuthLoginRequest, AuthLoginResponse
@@ -413,6 +414,11 @@ async def review_draft_action(
             raise HTTPException(status_code=500, detail=res.get("error", "WordPress push failed"))
         return res
 
+    elif act == "delete":
+        await db.delete(post)
+        await db.commit()
+        return {"success": True, "message": f"Draft #{post_id} deleted successfully."}
+
     elif act == "regenerate":
         # Load topic and rules
         topic = await db.get(Topic, post.topic_id) if post.topic_id else None
@@ -453,6 +459,50 @@ async def review_draft_action(
 
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported action '{action_in.action}'.")
+
+@app.delete("/api/drafts/{post_id}", dependencies=[Depends(require_developer)])
+async def delete_draft_endpoint(post_id: int, db: AsyncSession = Depends(get_db)):
+    post = await db.get(GeneratedPost, post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    await db.delete(post)
+    await db.commit()
+    return {"success": True, "message": f"Draft #{post_id} deleted successfully."}
+
+@app.post("/api/drafts/bulk-delete", response_model=DraftBulkDeleteResponse, dependencies=[Depends(require_developer)])
+async def bulk_delete_drafts(
+    payload: DraftBulkDeleteRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk deletes drafts by either:
+    1. An explicit list of post_ids
+    2. delete_all = True (optionally filtered by status, e.g. DUPLICATE_FLAGGED, REJECTED, or ALL)
+    """
+    if payload.delete_all:
+        stmt = delete(GeneratedPost)
+        if payload.status and payload.status != "ALL":
+            stmt = stmt.where(GeneratedPost.status == payload.status)
+        result = await db.execute(stmt)
+        await db.commit()
+        count = result.rowcount or 0
+        return DraftBulkDeleteResponse(
+            success=True,
+            deleted_count=count,
+            message=f"Successfully deleted {count} draft(s)."
+        )
+    elif payload.post_ids:
+        stmt = delete(GeneratedPost).where(GeneratedPost.id.in_(payload.post_ids))
+        result = await db.execute(stmt)
+        await db.commit()
+        count = result.rowcount or 0
+        return DraftBulkDeleteResponse(
+            success=True,
+            deleted_count=count,
+            message=f"Successfully deleted {count} draft(s)."
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Must provide post_ids or set delete_all=True.")
 
 @app.get("/api/drafts/{post_id}/yoast-audit")
 async def get_draft_yoast_audit(post_id: int, db: AsyncSession = Depends(get_db)):
