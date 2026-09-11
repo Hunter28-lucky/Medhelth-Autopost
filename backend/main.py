@@ -26,7 +26,7 @@ from backend.services.auth_service import (
     create_developer_token, verify_developer_token, require_developer
 )
 from backend.services.research_engine import ResearchEngine
-from backend.services.generator_engine import ContentGenerator
+from backend.services.generator_engine import ContentGenerator, clean_semantic_post_html
 from backend.services.dedup_engine import DeduplicationEngine
 from backend.services.pipeline import PublishingPipeline
 from backend.services.scheduler import scheduler_service
@@ -447,7 +447,7 @@ async def review_draft_action(
         post.title = new_data.get("title", post.title)
         post.slug = new_data.get("slug", post.slug)
         post.excerpt = new_data.get("excerpt", post.excerpt)
-        post.body_html = new_data.get("body_html", post.body_html)
+        post.body_html = clean_semantic_post_html(new_data.get("body_html", post.body_html))
         post.meta_title = new_data.get("meta_title", post.meta_title)
         post.meta_description = new_data.get("meta_description", post.meta_description)
         post.key_takeaways = new_data.get("key_takeaways", post.key_takeaways)

@@ -459,22 +459,17 @@ class YoastSeoOptimizer:
                 # Prepend or smoothly weave keyphrase into first sentence
                 first_p.string = f"Recent clinical investigations into {focus_keyphrase.lower()} highlight critical healthcare advancements. " + first_text
 
-        # 2. Fix Subheadings (Ensure at least one higher heading has the keyphrase)
+        # 2. Fix Subheadings (Ensure at least one higher heading has the keyphrase, strictly <h6><strong>)
         h2s = soup.find_all(['h2', 'h3', 'h4', 'h5', 'h6'])
         has_kw_in_h2 = any(focus_keyphrase.lower() in h.get_text().lower() for h in h2s)
         if not has_kw_in_h2 and h2s:
             target_h = h2s[0]
-            strong_tag = target_h.find('strong')
             new_title_text = f"{target_h.get_text().strip()} in {focus_keyphrase.title()}"
-            if strong_tag:
-                strong_tag.string = new_title_text
-            elif target_h.name == 'h6':
-                target_h.string = ""
-                s_tag = soup.new_tag("strong")
-                s_tag.string = new_title_text
-                target_h.append(s_tag)
-            else:
-                target_h.string = new_title_text
+            new_h = soup.new_tag("h6")
+            new_strong = soup.new_tag("strong")
+            new_strong.string = new_title_text
+            new_h.append(new_strong)
+            target_h.replace_with(new_h)
 
         # 3. Fix Outbound Links (Embed hyperlinks to sources directly in body if missing)
         existing_links = soup.find_all('a')
@@ -587,7 +582,8 @@ class YoastSeoOptimizer:
             if len(fixed_meta_desc) > 155:
                 fixed_meta_desc = fixed_meta_desc[:152].rstrip() + "..."
 
-        updated_body_html = str(soup)
+        from backend.services.generator_engine import clean_semantic_post_html
+        updated_body_html = clean_semantic_post_html(str(soup))
 
         # Run re-analysis
         repaired_post = {

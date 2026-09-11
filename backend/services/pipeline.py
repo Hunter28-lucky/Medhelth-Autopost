@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models import Topic, ContentRule, ResearchArticle, GeneratedPost, RunLog
 from backend.services.research_engine import ResearchEngine
 from backend.services.dedup_engine import DeduplicationEngine
-from backend.services.generator_engine import ContentGenerator
+from backend.services.generator_engine import ContentGenerator, clean_semantic_post_html
 from backend.services.yoast_optimizer import yoast_optimizer
 from backend.services.wp_client import WordPressClient
 from backend.config import settings
@@ -195,10 +195,13 @@ class PublishingPipeline:
                 draft_data.update(repaired)
                 log_step("YOAST_GREEN_CONFIRMED", f"Yoast 100% Green Lights Verified: SEO {draft_data.get('yoast_seo_score', 90)}/100, Readability {draft_data.get('yoast_readability_score', 90)}/100.")
 
-            # 9. Save Generated Post
+            # 9. Save Generated Post (Strictly sanitized to WordPress Classic Editor standard)
             post_status = "PENDING_REVIEW"
             if sim_status == "EXCEEDED_THRESHOLD":
                 post_status = "DUPLICATE_FLAGGED"
+
+            clean_body = clean_semantic_post_html(draft_data.get("body_html", ""))
+            draft_data["body_html"] = clean_body
 
             generated_post = GeneratedPost(
                 topic_id=topic.id,
@@ -303,9 +306,13 @@ class PublishingPipeline:
         if not post:
             return {"success": False, "error": f"Post #{post_id} not found."}
 
+        # Strictly normalize HTML to WordPress Classic Editor standard (no callout boxes, no quotes, strictly h6/strong)
+        clean_body = clean_semantic_post_html(post.body_html)
+        post.body_html = clean_body
+
         wp_payload = {
             "title": post.title,
-            "body_html": post.body_html,
+            "body_html": clean_body,
             "slug": post.slug,
             "excerpt": post.excerpt,
             "categories": post.categories,

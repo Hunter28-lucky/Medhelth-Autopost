@@ -2,12 +2,68 @@ import json
 import logging
 import re
 from typing import Dict, Any, List, Optional
+from bs4 import BeautifulSoup
 import anthropic
 from backend.models import ContentRule
 from backend.config import settings
 from backend.services.openrouter_client import OpenRouterClient
 
 logger = logging.getLogger("publisher.generator")
+
+def clean_semantic_post_html(html_content: str) -> str:
+    """
+    Normalizes article HTML strictly to the WordPress Classic Editor standard:
+    - Headings strictly formatted as <h6><strong>Subheading Title</strong></h6> (Classic Editor breadcrumb 'H6 » STRONG').
+    - Body content in clean <p>...</p> tags.
+    - Strips all callout boxes (div.key-takeaways, etc.), FAQ items, blockquotes, and disclaimers from the body.
+    - Strips any wrapper divs and inline styles.
+    """
+    if not html_content:
+        return ""
+    soup = BeautifulSoup(html_content, "html.parser")
+    
+    # 1. Remove blockquotes
+    for b in list(soup.find_all("blockquote")):
+        b.decompose()
+        
+    # 2. Remove unwanted callout boxes, FAQ divs, disclaimer divs by class
+    for el in list(soup.find_all(class_=re.compile(r"key-takeaways|takeaways|faq|disclaimer|medical-disclaimer", re.I))):
+        el.decompose()
+
+    # 3. Remove unwanted headings (FAQ, Takeaways, Disclaimer) and normalize legitimate headings
+    for h in list(soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])):
+        if h.parent is None:
+            continue
+        htext = h.get_text().strip()
+        htext_lower = htext.lower()
+        if any(bad in htext_lower for bad in ["key takeaway", "frequently asked", "medical disclaimer", "disclaimer"]):
+            h.decompose()
+        else:
+            new_h = soup.new_tag("h6")
+            new_strong = soup.new_tag("strong")
+            new_strong.string = htext
+            new_h.append(new_strong)
+            h.replace_with(new_h)
+
+    # 4. Clean paragraphs and remove disclaimer paragraphs
+    for p in list(soup.find_all("p")):
+        if p.parent is None:
+            continue
+        p_text = p.get_text().strip()
+        p_lower = p_text.lower()
+        if not p_text or p_lower.startswith("medical disclaimer:") or p_lower.startswith("disclaimer:"):
+            p.decompose()
+        else:
+            p.attrs = {}
+
+    # 5. Unwrap all remaining divs (leaving only semantic h6/strong and p)
+    while soup.find("div"):
+        div = soup.find("div")
+        div.unwrap()
+
+    result = str(soup).strip()
+    result = re.sub(r"\n\s*\n+", "\n\n", result)
+    return result
 
 class ContentGenerator:
     def __init__(
@@ -141,18 +197,23 @@ Please generate a complete, structured JSON response with the following keys:
     {"title": "Source title", "url": "https://...", "domain": "domain.com"}
   ]
 }
+
+CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not include thinking steps, preamble, explanations, or text outside the JSON object.
 """
 
         # 1. Try OpenRouter Free AI if configured (preferred free route)
         if self.openrouter_client.is_configured():
             try:
                 logger.info(f"Generating draft using OpenRouter Free AI ({self.openrouter_client.model})...")
-                return self.openrouter_client.generate_chat_completion(
+                res = self.openrouter_client.generate_chat_completion(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=0.3,
                     max_tokens=4000
                 )
+                if isinstance(res, dict) and "body_html" in res:
+                    res["body_html"] = clean_semantic_post_html(res["body_html"])
+                    return res
             except Exception as e:
                 logger.error(f"OpenRouter generation failed: {e}. Attempting secondary provider or sandbox fallback...")
 
@@ -176,7 +237,10 @@ Please generate a complete, structured JSON response with the following keys:
                 if raw_text.endswith("```"):
                     raw_text = raw_text[:-3]
 
-                return json.loads(raw_text.strip())
+                parsed = json.loads(raw_text.strip())
+                if isinstance(parsed, dict) and "body_html" in parsed:
+                    parsed["body_html"] = clean_semantic_post_html(parsed["body_html"])
+                return parsed
 
             except Exception as e:
                 logger.error(f"Claude API call failed: {e}. Falling back to sandbox generator.")
@@ -195,6 +259,7 @@ Please generate a complete, structured JSON response with the following keys:
         """
         High quality, deterministic draft generator used when no Anthropic API key is provided,
         enabling full end-to-end testing without external API requirements.
+        Strictly complies with the 450-520 word standard and <h6><strong> heading hierarchy.
         """
         primary_article = research_articles[0] if research_articles else {
             "title": f"New Advances in {topic_name}",
@@ -209,10 +274,8 @@ Please generate a complete, structured JSON response with the following keys:
         focus_keyphrase = topic_name.lower().strip()
         slug = re.sub(r'[^a-z0-9]+', '-', f"{focus_keyphrase}-{headline.lower()}").strip('-')[:60]
 
-        angle_note = ""
         if deviation_angle_instruction:
             headline = f"Clinical Perspective: {headline}"
-            angle_note = "<p><em>Notably, this analysis focuses on implementation barriers, healthcare economics, and longitudinal safety outcomes.</em></p>"
 
         takeaways = [
             claims[0] if len(claims) > 0 else f"New multi-center clinical trials highlight significant utility in {focus_keyphrase}.",
@@ -222,6 +285,7 @@ Please generate a complete, structured JSON response with the following keys:
 
         body_html = f"""<h6><strong>{focus_keyphrase.title()} Advances Clinical Care</strong></h6>
 <p>The {focus_keyphrase} represents a specialized healthcare development designed to support modern clinical workflows while improving everyday patient well-being. Specifically, this innovative approach focuses on proactive intervention rather than retrospective monitoring. In addition, its modular architecture allows healthcare facilities to upgrade safety and quality without major operational interruptions.</p>
+<p>Modern clinical teams increasingly require dependable digital decision support systems that integrate directly into procedural suites. By streamlining diagnostic evaluation at the point of care, clinicians can achieve greater diagnostic consistency and minimize procedural delays across multidisciplinary hospital environments.</p>
 
 <h6><strong>Modern Design Simplifies Implementation</strong></h6>
 <p>Furthermore, the system features a lightweight and dependable framework that clinical teams can adopt quickly without rebuilding existing infrastructure. Consequently, this approach reduces clinical downtime and keeps vital medical services running smoothly.</p>
@@ -241,11 +305,9 @@ Please generate a complete, structured JSON response with the following keys:
 
 <h6><strong>Future of Healthcare and Patient Safety</strong></h6>
 <p>Ultimately, clinical innovations like this demonstrate how patient safety and medical precision continue to evolve. Healthcare systems increasingly seek clinical innovations that successfully unite safety, procedural efficiency, and institutional affordability.</p>
-<p>As advanced healthcare interventions become more frequent, medical facilities require adaptable solutions that integrate smoothly into demanding environments. As a result, {focus_keyphrase} sets an exemplary benchmark for clinical excellence, empowering healthcare teams with dependable long-term protection.</p>"""
+<p>As advanced healthcare interventions become more frequent, medical facilities require adaptable solutions that integrate smoothly into demanding environments. As a result, {focus_keyphrase} sets an exemplary benchmark for clinical excellence, empowering healthcare teams with dependable long-term protection across diverse clinical demographics.</p>"""
 
-        font_style = getattr(rules, "style_reference_font", "")
-        if font_style and font_style not in ("default", "system-ui, -apple-system, sans-serif", "Inter, -apple-system, sans-serif"):
-            body_html = f'<div style="font-family: {font_style}; line-height: 1.6;">\n{body_html}\n</div>'
+        clean_body = clean_semantic_post_html(body_html)
 
         sources = []
         for art in research_articles:
@@ -278,7 +340,7 @@ Please generate a complete, structured JSON response with the following keys:
             "title": headline if headline.endswith(" .") or headline.endswith(".") else f"{headline} .",
             "slug": slug[:60],
             "excerpt": f"An in-depth clinical analysis of recent advancements in {focus_keyphrase}, evaluating trial data, regulatory milestones, and prospective patient outcomes.",
-            "body_html": body_html.strip(),
+            "body_html": clean_body,
             "meta_title": meta_title,
             "meta_description": meta_description,
             "tags": [focus_keyphrase, "clinical-trials", "medical-ai", "healthcare-innovation"],

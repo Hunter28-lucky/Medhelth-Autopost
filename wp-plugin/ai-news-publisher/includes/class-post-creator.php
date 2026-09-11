@@ -27,7 +27,42 @@ class AI_News_Publisher_Post_Creator {
         $post_status = 'draft';
 
         $title   = sanitize_text_field($data['title']);
-        $content = wp_kses_post($data['body_html']);
+        $raw_html = !empty($data['body_html']) ? $data['body_html'] : '';
+
+        // Strict WordPress Classic Editor Sanitization (H6 STRONG hierarchy, zero callouts/quotes/disclaimers):
+        // 1. Remove blockquotes completely
+        $raw_html = preg_replace('/<blockquote\b[^>]*>.*?<\/blockquote>/is', '', $raw_html);
+
+        // 2. Remove styled callout boxes, takeaways, FAQs, and disclaimer divs
+        $raw_html = preg_replace('/<div\b[^>]*(?:key-takeaways|takeaways|faq|disclaimer|medical-disclaimer)[^>]*>.*?<\/div>/is', '', $raw_html);
+
+        // 3. Remove unwanted headings (FAQ, Takeaways, Disclaimers)
+        $raw_html = preg_replace('/<h[1-6]\b[^>]*>.*?(?:frequently asked|disclaimer|takeaway).*?<\/h[1-6]>/is', '', $raw_html);
+
+        // 4. Transform any h1-h5 headings to <h6><strong>...</strong></h6>
+        $raw_html = preg_replace_callback('/<h([1-5])\b[^>]*>(.*?)<\/h\1>/is', function($m) {
+            $text = strip_tags($m[2]);
+            return '<h6><strong>' . trim($text) . '</strong></h6>';
+        }, $raw_html);
+
+        // 5. Ensure existing h6 have <strong> wrapper inside
+        $raw_html = preg_replace_callback('/<h6\b[^>]*>(.*?)<\/h6>/is', function($m) {
+            $inner = trim($m[1]);
+            if (stripos($inner, '<strong>') === false) {
+                return '<h6><strong>' . strip_tags($inner) . '</strong></h6>';
+            }
+            return '<h6>' . $inner . '</h6>';
+        }, $raw_html);
+
+        // 6. Unwrap any remaining generic divs
+        $raw_html = preg_replace('/<\/?div\b[^>]*>/is', '', $raw_html);
+
+        // 7. Remove empty paragraphs and disclaimers in paragraphs
+        $raw_html = preg_replace('/<p\b[^>]*>\s*(?:medical disclaimer:|disclaimer:).*?<\/p>/is', '', $raw_html);
+        $raw_html = preg_replace('/<p\b[^>]*>/is', '<p>', $raw_html);
+        $raw_html = preg_replace('/<p>\s*<\/p>/is', '', $raw_html);
+
+        $content = wp_kses_post(trim($raw_html));
         $excerpt = !empty($data['excerpt']) ? sanitize_textarea_field($data['excerpt']) : '';
         $slug    = !empty($data['slug']) ? sanitize_title($data['slug']) : sanitize_title($title);
 

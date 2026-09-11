@@ -38,10 +38,12 @@ POPULAR_FREE_MODELS = [
 ]
 
 FREE_MODEL_CASCADE = [
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "liquid/lfm-2.5-2.6b:free",
     "inclusionai/ling-3.0-flash-sante:free",
     "nex-agi/nex-n2.5-pro:free",
     "nex-agi/nex-n2.5-mini:free",
-    "google/gemma-4-31b-it:free",
     "openrouter/free"
 ]
 
@@ -120,12 +122,13 @@ class OpenRouterClient:
                     ],
                     "temperature": temperature,
                     "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"} if "llama-3.3" in model_candidate or "qwen" in model_candidate else None
+                    "response_format": {"type": "json_object"} if "llama-3.3" in model_candidate or "qwen" in model_candidate else None,
+                    "reasoning": {"max_tokens": 500} if ("ling" in model_candidate or "nex" in model_candidate) else None
                 }
                 # Remove None fields
                 payload = {k: v for k, v in payload.items() if v is not None}
 
-                response_data = self._send_request(payload, timeout=60)
+                response_data = self._send_request(payload, timeout=15)
                 choices = response_data.get("choices", [])
                 if not choices:
                     err_msg = response_data.get("error", {}).get("message", "Empty choices array returned")
@@ -133,6 +136,12 @@ class OpenRouterClient:
 
                 msg = choices[0].get("message", {}) or {}
                 raw_content = (msg.get("content") or "").strip()
+
+                if not raw_content and msg.get("reasoning"):
+                    reasoning_text = msg.get("reasoning", "").strip()
+                    json_match = re.search(r'\{.*\}', reasoning_text, re.DOTALL)
+                    if json_match:
+                        raw_content = json_match.group(0)
 
                 if not raw_content:
                     raise ValueError("Model returned empty content")

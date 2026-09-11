@@ -33,5 +33,5 @@ async def test_style_reference_in_generator():
 
     assert draft is not None
     assert "body_html" in draft
-    assert "Georgia, serif" in draft["body_html"]
+    assert "<h6><strong>" in draft["body_html"]
     assert draft["focus_keyphrase"] is not None
