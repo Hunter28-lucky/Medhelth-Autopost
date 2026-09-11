@@ -50,11 +50,14 @@ class AI_News_Publisher_Post_Creator {
                 if (!empty($clean_cat)) {
                     $term = term_exists($clean_cat, 'category');
                     if ($term) {
-                        $cat_ids[] = is_array($term) ? $term['term_id'] : $term;
+                        $cat_ids[] = is_array($term) ? intval($term['term_id']) : intval($term);
                     } else {
+                        if (!function_exists('wp_create_category')) {
+                            require_once ABSPATH . 'wp-admin/includes/taxonomy.php';
+                        }
                         $new_cat = wp_create_category($clean_cat);
-                        if (!is_wp_error($new_cat)) {
-                            $cat_ids[] = $new_cat;
+                        if (!is_wp_error($new_cat) && $new_cat > 0) {
+                            $cat_ids[] = intval($new_cat);
                         }
                     }
                 }
