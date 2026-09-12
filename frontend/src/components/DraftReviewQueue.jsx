@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 
-export default function DraftReviewQueue({ drafts, onRefresh }) {
+export default function DraftReviewQueue({ drafts, onSelectSite, onRefresh }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedDraft, setSelectedDraft] = useState(null);
   const [regeneratePrompt, setRegeneratePrompt] = useState('');
@@ -342,7 +342,12 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                   {getStatusBadge(draft.status)}
                   {getSimilarityBadge(draft.similarity_score, draft.similarity_status)}
                   {draft.site_name && (
-                    <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <span 
+                      className="badge badge-purple" 
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onSelectSite ? 'pointer' : 'default' }}
+                      onClick={() => onSelectSite && onSelectSite(draft.site_id, 'drafts')}
+                      title={`Click to focus on ${draft.site_name} drafts`}
+                    >
                       <Globe size={11} /> {draft.site_name}
                     </span>
                   )}

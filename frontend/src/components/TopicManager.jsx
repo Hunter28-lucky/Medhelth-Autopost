@@ -4,7 +4,8 @@ import {
   Search, X, AlertCircle 
 } from 'lucide-react';
 
-export default function TopicManager({ topics, selectedSiteId, sites = [], onRefresh, onTriggerRun }) {
+export default function TopicManager({ topics, selectedSiteId, sites = [], onSelectSite, onRefresh, onTriggerRun }) {
+  const activeSite = sites.find(s => s.id === selectedSiteId);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState(null);
@@ -152,11 +153,20 @@ export default function TopicManager({ topics, selectedSiteId, sites = [], onRef
       {/* Header Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            Topic Categories <span className="badge badge-cyan">{topics.length} Configured</span>
+          <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {activeSite ? `${activeSite.name} - Topic Categories` : 'Topic Categories (All Websites)'}
+            <span className="badge badge-cyan">{topics.length} Configured</span>
+            {activeSite && (
+              <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                <Globe size={11} /> Isolated to {activeSite.name}
+              </span>
+            )}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Manage medical/AI research subjects, prioritized weighting, and search keywords.
+            {activeSite 
+              ? `Research subjects, prioritized weighting, and search keywords strictly for ${activeSite.name}. Topics from other websites are isolated.`
+              : 'Research subjects across all connected websites. Select a website to manage its isolated categories.'
+            }
           </p>
         </div>
 
@@ -195,7 +205,12 @@ export default function TopicManager({ topics, selectedSiteId, sites = [], onRef
                     <span className="badge badge-indigo">Weight: {topic.weight}/10</span>
                     <span className="badge badge-cyan">{topic.lookback_days}d Window</span>
                     {topic.site_name && (
-                      <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <span 
+                        className="badge badge-purple" 
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onSelectSite ? 'pointer' : 'default' }}
+                        onClick={() => onSelectSite && onSelectSite(topic.site_id, 'topics')}
+                        title={`Click to open ${topic.site_name} Control Center`}
+                      >
                         <Globe size={11} /> {topic.site_name}
                       </span>
                     )}

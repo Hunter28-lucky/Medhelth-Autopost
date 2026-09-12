@@ -335,7 +335,11 @@ export default function SiteManager({
                     <Globe size={22} />
                   </div>
                   <div>
-                    <h3 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 
+                      style={{ fontSize: '1.15rem', color: '#fff', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                      onClick={() => onSelectSite(site.id, 'topics')}
+                      title={`Open ${site.name} Control Center`}
+                    >
                       {site.name}
                       {isPrimary && (
                         <span className="badge badge-cyan" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
@@ -357,7 +361,7 @@ export default function SiteManager({
                   ) : (
                     <button
                       className="btn btn-ghost"
-                      onClick={() => onSelectSite(site.id)}
+                      onClick={() => onSelectSite(site.id, 'topics')}
                       style={{ fontSize: '0.78rem', padding: '4px 10px' }}
                       title="Set active site focus for the entire dashboard"
                     >
@@ -398,35 +402,87 @@ export default function SiteManager({
                 </div>
               </div>
 
-              {/* Metrics Pill Row */}
+              {/* Metrics Pill Row - Interactive direct links */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.25rem', color: '#fff', fontWeight: '700' }}>
+                <div 
+                  onClick={() => onSelectSite(site.id, 'topics')}
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.03)', 
+                    padding: '10px', 
+                    borderRadius: '8px', 
+                    border: '1px solid var(--border-subtle)', 
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s, background 0.2s'
+                  }}
+                  title={`Click to view and manage topics for ${site.name}`}
+                >
+                  <div style={{ fontSize: '1.25rem', color: '#00f0ff', fontWeight: '700' }}>
                     {site.topics_count}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
-                    <Layers size={11} /> Topics
+                    <Layers size={11} /> Topics &rarr;
                   </div>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                <div 
+                  onClick={() => onSelectSite(site.id, 'drafts')}
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.03)', 
+                    padding: '10px', 
+                    borderRadius: '8px', 
+                    border: '1px solid var(--border-subtle)', 
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s, background 0.2s'
+                  }}
+                  title={`Click to view review queue for ${site.name}`}
+                >
                   <div style={{ fontSize: '1.25rem', color: site.drafts_count > 0 ? '#fbbf24' : '#fff', fontWeight: '700' }}>
                     {site.drafts_count}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
-                    <FileText size={11} /> Review Queue
+                    <FileText size={11} /> Review &rarr;
                   </div>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+                <div 
+                  onClick={() => onSelectSite(site.id, 'drafts')}
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.03)', 
+                    padding: '10px', 
+                    borderRadius: '8px', 
+                    border: '1px solid var(--border-subtle)', 
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s, background 0.2s'
+                  }}
+                  title={`Click to view published posts for ${site.name}`}
+                >
                   <div style={{ fontSize: '1.25rem', color: '#34d399', fontWeight: '700' }}>
                     {site.published_count}
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}>
-                    <Send size={11} /> Live on WP
+                    <Send size={11} /> Live WP
                   </div>
                 </div>
               </div>
+
+              {/* Main CTA: Enter Website Control Center */}
+              <button
+                className="btn btn-primary"
+                onClick={() => onSelectSite(site.id, 'topics')}
+                style={{ 
+                  width: '100%', 
+                  justifyContent: 'center', 
+                  padding: '10px 14px', 
+                  fontSize: '0.86rem',
+                  fontWeight: '600'
+                }}
+                title={`Open dedicated control page for ${site.name}`}
+              >
+                <Sliders size={15} /> Enter {site.name} Control Center &rarr;
+              </button>
 
               {/* Config Badges */}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -469,6 +525,15 @@ export default function SiteManager({
                   >
                     {testingSiteId === site.id ? <RefreshCw size={13} className="spin" /> : <Globe size={13} />}
                     Test Health
+                  </button>
+
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => onSelectSite(site.id, 'rules')}
+                    style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                    title="Configure content directives for this website"
+                  >
+                    <Sliders size={13} /> Rules
                   </button>
 
                   <button

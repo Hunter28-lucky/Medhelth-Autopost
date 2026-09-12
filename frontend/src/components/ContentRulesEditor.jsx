@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, CheckCircle2, ShieldCheck, Sparkles, BookOpen, AlertTriangle } from 'lucide-react';
 
-export default function ContentRulesEditor({ rules, onSaveRules }) {
+export default function ContentRulesEditor({ rules, siteName, onSaveRules }) {
   const [formData, setFormData] = useState(rules || {});
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,11 +34,17 @@ export default function ContentRulesEditor({ rules, onSaveRules }) {
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            Content & SEO Directives <span className="badge badge-indigo">Claude Prompt Configuration</span>
+          <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {siteName ? `${siteName} - Directives` : 'Content & SEO Directives'}
+            <span className="badge badge-indigo">Claude Prompt Configuration</span>
+            {siteName && (
+              <span className="badge badge-purple" style={{ fontSize: '0.72rem' }}>
+                Isolated to {siteName}
+              </span>
+            )}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Configure tone, word count targets, structural blocks, and style guide rules that Claude strictly enforces.
+            Configure tone, word count targets, and style rules strictly for <strong>{siteName || 'this website'}</strong>.
           </p>
         </div>
 

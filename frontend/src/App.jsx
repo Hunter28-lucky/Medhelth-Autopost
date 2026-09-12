@@ -609,13 +609,115 @@ export default function App() {
 
       {/* Main Content View */}
       <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '32px 24px' }}>
+        {/* Active Context Banner: Global Dashboard vs Dedicated Website Control Center */}
+        <div className="glass-card" style={{
+          padding: '16px 22px',
+          marginBottom: '26px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          border: currentSite ? '1px solid rgba(0, 240, 255, 0.35)' : '1px solid var(--border-subtle)',
+          background: currentSite ? 'rgba(0, 240, 255, 0.04)' : 'rgba(255, 255, 255, 0.02)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: currentSite 
+                ? (currentSite.id === 1 ? 'linear-gradient(135deg, #00f0ff 0%, #6366f1 100%)' : 'linear-gradient(135deg, #6366f1 0%, #ec4899 100%)')
+                : 'rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: currentSite ? '#041019' : '#cbd5e1'
+            }}>
+              <Globe size={20} />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', margin: 0, fontWeight: '700' }}>
+                  {currentSite ? `${currentSite.name} Control Center` : 'Global Multi-Site Dashboard'}
+                </h3>
+                {currentSite ? (
+                  <>
+                    <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
+                      Isolated Site #{currentSite.id}
+                    </span>
+                    {currentSite.id === 1 && (
+                      <span className="badge badge-indigo" style={{ fontSize: '0.68rem' }}>
+                        Primary
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="badge badge-purple" style={{ fontSize: '0.72rem' }}>
+                    All Websites ({sites.length} Active)
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                {currentSite ? (
+                  <>
+                    <span>Target: <strong style={{ color: '#38bdf8' }}>{currentSite.wp_url}</strong></span>
+                    <span>&bull;</span>
+                    <span><strong style={{ color: '#00f0ff' }}>{displayTopics.length}</strong> Topics (Isolated)</span>
+                    <span>&bull;</span>
+                    <span><strong style={{ color: '#fbbf24' }}>{displayDrafts.length}</strong> Review Drafts</span>
+                    <span>&bull;</span>
+                    <span>Auto-Push: <strong>{currentSite.auto_push_to_wp ? 'Immediate' : 'Review Gate'}</strong></span>
+                  </>
+                ) : (
+                  <span>Managing {sites.length} connected websites. Click any website below to enter its isolated control center.</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {currentSite ? (
+              <>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setSelectedSiteId(null)}
+                  style={{ fontSize: '0.82rem', padding: '7px 14px' }}
+                  title="Return to aggregated overview of all websites"
+                >
+                  <Layers size={14} /> Switch to All Websites
+                </button>
+
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleTriggerRun(null)}
+                  style={{ fontSize: '0.82rem', padding: '7px 14px' }}
+                  title={`Trigger automated article run for ${currentSite.name}`}
+                >
+                  <Sparkles size={14} /> Run for {currentSite.name}
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-primary"
+                onClick={() => setActiveTab('sites')}
+                style={{ fontSize: '0.82rem', padding: '7px 14px' }}
+              >
+                <Globe size={14} /> Manage Connected Websites ({sites.length})
+              </button>
+            )}
+          </div>
+        </div>
+
         {activeTab === 'sites' && (
           <SiteManager 
             sites={sites} 
             selectedSiteId={selectedSiteId} 
-            onSelectSite={(id) => {
+            onSelectSite={(id, tab = 'topics') => {
               setSelectedSiteId(id);
-              setActiveTab('topics');
+              setActiveTab(tab);
             }} 
             onRefresh={fetchAllData} 
             onTriggerRun={handleTriggerRun} 
@@ -627,7 +729,10 @@ export default function App() {
             topics={displayTopics}
             selectedSiteId={selectedSiteId}
             sites={sites}
-            onSelectSite={setSelectedSiteId}
+            onSelectSite={(id, tab = 'topics') => {
+              setSelectedSiteId(id);
+              setActiveTab(tab);
+            }}
             onRefresh={fetchAllData} 
             onTriggerRun={handleTriggerRun} 
           />
@@ -635,7 +740,8 @@ export default function App() {
 
         {activeTab === 'rules' && (
           <ContentRulesEditor 
-            rules={contentRules} 
+            rules={contentRules}
+            siteName={currentSite?.name}
             onSaveRules={handleSaveContentRules} 
           />
         )}
@@ -643,6 +749,10 @@ export default function App() {
         {activeTab === 'drafts' && (
           <DraftReviewQueue 
             drafts={displayDrafts} 
+            onSelectSite={(id, tab = 'drafts') => {
+              setSelectedSiteId(id);
+              setActiveTab(tab);
+            }}
             onRefresh={fetchAllData} 
           />
         )}
