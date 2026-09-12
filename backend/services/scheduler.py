@@ -6,7 +6,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select
 
 from backend.database import AsyncSessionLocal
-from backend.models import Topic
+from backend.models import Topic, ManagedSite
 from backend.services.pipeline import PublishingPipeline
 from backend.config import settings
 
@@ -21,11 +21,16 @@ class PublishingScheduler:
 
     async def _run_scheduled_cycle(self):
         """
-        Picks an active topic using weighted random selection and triggers the pipeline.
+        Picks an active topic using weighted random selection from active sites that have scheduler enabled,
+        and triggers the pipeline.
         """
         logger.info("Executing scheduled news publishing cycle...")
         async with AsyncSessionLocal() as session:
-            stmt = select(Topic).where(Topic.is_active == True)
+            stmt = select(Topic).join(ManagedSite, Topic.site_id == ManagedSite.id).where(
+                Topic.is_active == True,
+                ManagedSite.is_active == True,
+                ManagedSite.is_scheduler_enabled == True
+            )
             result = await session.execute(stmt)
             active_topics = result.scalars().all()
 

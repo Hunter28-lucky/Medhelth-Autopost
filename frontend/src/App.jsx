@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   Activity, Layers, Sliders, FileText, PlayCircle, Settings as SettingsIcon, 
   Globe, AlertCircle, ExternalLink, Sparkles,
-  Shield, Lock, LogOut, Eye, EyeOff
+  Shield, Lock, LogOut, Eye, EyeOff, ChevronDown, Plus
 } from 'lucide-react';
 
 import { getDeveloperToken, setDeveloperToken, removeDeveloperToken } from './apiClient';
+import SiteManager from './components/SiteManager';
 import TopicManager from './components/TopicManager';
 import ContentRulesEditor from './components/ContentRulesEditor';
 import DraftReviewQueue from './components/DraftReviewQueue';
@@ -23,6 +24,11 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [developerName, setDeveloperName] = useState('Krish Goswami');
+
+  // Multi-Site State
+  const [sites, setSites] = useState([]);
+  const [selectedSiteId, setSelectedSiteId] = useState(1); // Default to Site 1 (MedHealth Times)
+  const [showSiteMenu, setShowSiteMenu] = useState(false);
 
   // Data states
   const [topics, setTopics] = useState([]);
@@ -72,15 +78,17 @@ export default function App() {
 
   const fetchAllData = async () => {
     try {
-      const [tRes, rRes, dRes, lRes, sRes, scRes] = await Promise.all([
+      const [sitesRes, tRes, rRes, dRes, lRes, sRes, scRes] = await Promise.all([
+        fetch('/api/sites').then(r => r.json()),
         fetch('/api/topics').then(r => r.json()),
-        fetch('/api/content-rules').then(r => r.json()),
+        fetch(`/api/content-rules?site_id=${selectedSiteId || 1}`).then(r => r.json()),
         fetch('/api/drafts').then(r => r.json()),
         fetch('/api/runs/history').then(r => r.json()),
         fetch('/api/settings').then(r => r.json()),
         fetch('/api/scheduler/status').then(r => r.json())
       ]);
 
+      setSites(Array.isArray(sitesRes) ? sitesRes : []);
       setTopics(Array.isArray(tRes) ? tRes : []);
       setContentRules(rRes);
       setDrafts(Array.isArray(dRes) ? dRes : []);
@@ -91,6 +99,15 @@ export default function App() {
       console.error('Failed to load dashboard data:', err);
     }
   };
+
+  // Reload content rules whenever active site changes
+  useEffect(() => {
+    if (!isAuthenticated || !selectedSiteId) return;
+    fetch(`/api/content-rules?site_id=${selectedSiteId}`)
+      .then(r => r.json())
+      .then(data => setContentRules(data))
+      .catch(console.error);
+  }, [selectedSiteId, isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -136,7 +153,11 @@ export default function App() {
     const res = await fetch('/api/runs/trigger', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic_id: topicId, force_fresh_search: true })
+      body: JSON.stringify({ 
+        site_id: selectedSiteId, 
+        topic_id: topicId, 
+        force_fresh_search: true 
+      })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -147,7 +168,7 @@ export default function App() {
   };
 
   const handleSaveContentRules = async (updatedRules) => {
-    const res = await fetch('/api/content-rules', {
+    const res = await fetch(`/api/content-rules?site_id=${selectedSiteId || 1}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedRules)
@@ -174,7 +195,17 @@ export default function App() {
     setSchedulerStatus(data);
   };
 
-  const pendingDraftsCount = drafts.filter(d => d.status === 'PENDING_REVIEW').length;
+  // Filtered views according to active site selection
+  const displayTopics = selectedSiteId 
+    ? topics.filter(t => t.site_id === selectedSiteId)
+    : topics;
+
+  const displayDrafts = selectedSiteId
+    ? drafts.filter(d => d.site_id === selectedSiteId)
+    : drafts;
+
+  const pendingDraftsCount = displayDrafts.filter(d => d.status === 'PENDING_REVIEW').length;
+  const currentSite = sites.find(s => s.id === selectedSiteId) || sites[0] || { name: 'MedHealth Times', id: 1, wp_url: 'http://sh012.global.temp.domains/~ttprdsmy/medhealthtimes' };
 
   // --- DEVELOPER ACCESS LOCK SCREEN ---
   if (!isAuthenticated && !isCheckingAuth) {
@@ -327,18 +358,155 @@ export default function App() {
               <h1 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: '700', lineHeight: 1.2 }}>
                 PulsePublish <span style={{ color: '#00f0ff', fontSize: '0.8rem', fontWeight: '500' }}>AI News Engine</span>
               </h1>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Medical & AI Research &bull; WordPress Auto-Publisher</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Multi-Site Automation &bull; WordPress Auto-Publisher</span>
+            </div>
+
+            {/* Site Switcher Dropdown */}
+            <div style={{ position: 'relative', marginLeft: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setShowSiteMenu(!showSiteMenu)}
+                className="btn btn-secondary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 12px',
+                  fontSize: '0.82rem',
+                  background: 'rgba(0, 240, 255, 0.08)',
+                  border: '1px solid rgba(0, 240, 255, 0.3)',
+                  color: '#fff',
+                  borderRadius: '8px'
+                }}
+                title="Switch Target Website"
+              >
+                <Globe size={14} color="#00f0ff" />
+                <span style={{ fontWeight: '600', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedSiteId ? currentSite.name : 'All Websites'}
+                </span>
+                <ChevronDown size={14} color="var(--text-muted)" />
+              </button>
+
+              {showSiteMenu && (
+                <div 
+                  className="glass-card"
+                  style={{
+                    position: 'absolute',
+                    top: '115%',
+                    left: 0,
+                    minWidth: '260px',
+                    zIndex: 200,
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    boxShadow: '0 12px 36px rgba(0, 0, 0, 0.7)'
+                  }}
+                >
+                  <div style={{ padding: '6px 10px', fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Active Website Focus
+                  </div>
+                  {sites.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSiteId(s.id);
+                        setShowSiteMenu(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        background: selectedSiteId === s.id ? 'rgba(0, 240, 255, 0.12)' : 'transparent',
+                        border: 'none',
+                        color: selectedSiteId === s.id ? '#00f0ff' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        fontSize: '0.84rem'
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name}
+                      </span>
+                      {s.id === 1 && (
+                        <span className="badge badge-cyan" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>
+                          Primary
+                        </span>
+                      )}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSiteId(null);
+                      setShowSiteMenu(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: selectedSiteId === null ? 'rgba(0, 240, 255, 0.12)' : 'transparent',
+                      border: 'none',
+                      color: selectedSiteId === null ? '#00f0ff' : '#94a3b8',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '0.84rem'
+                    }}
+                  >
+                    🌐 View All Websites
+                  </button>
+
+                  <div style={{ borderTop: '1px solid var(--border-subtle)', margin: '4px 0' }} />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSiteMenu(false);
+                      setActiveTab('sites');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#818cf8',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '0.84rem',
+                      fontWeight: '600'
+                    }}
+                  >
+                    <Plus size={14} /> Manage Websites...
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Navigation Tabs */}
           <nav style={{ display: 'flex', gap: '4px', background: 'var(--bg-surface-elevated)', padding: '5px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
             <button 
+              className={`btn btn-ghost ${activeTab === 'sites' ? 'btn-secondary' : ''}`}
+              onClick={() => setActiveTab('sites')}
+              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
+            >
+              <Globe size={16} /> Websites ({sites.length})
+            </button>
+
+            <button 
               className={`btn btn-ghost ${activeTab === 'topics' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('topics')}
               style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <Layers size={16} /> Topics ({topics.length})
+              <Layers size={16} /> Topics ({displayTopics.length})
             </button>
 
             <button 
@@ -346,7 +514,7 @@ export default function App() {
               onClick={() => setActiveTab('rules')}
               style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <Sliders size={16} /> Content Rules & Style Cloner
+              <Sliders size={16} /> Content Rules
             </button>
 
             <button 
@@ -441,9 +609,25 @@ export default function App() {
 
       {/* Main Content View */}
       <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '32px 24px' }}>
+        {activeTab === 'sites' && (
+          <SiteManager 
+            sites={sites} 
+            selectedSiteId={selectedSiteId} 
+            onSelectSite={(id) => {
+              setSelectedSiteId(id);
+              setActiveTab('topics');
+            }} 
+            onRefresh={fetchAllData} 
+            onTriggerRun={handleTriggerRun} 
+          />
+        )}
+
         {activeTab === 'topics' && (
           <TopicManager 
-            topics={topics} 
+            topics={displayTopics}
+            selectedSiteId={selectedSiteId}
+            sites={sites}
+            onSelectSite={setSelectedSiteId}
             onRefresh={fetchAllData} 
             onTriggerRun={handleTriggerRun} 
           />
@@ -458,15 +642,15 @@ export default function App() {
 
         {activeTab === 'drafts' && (
           <DraftReviewQueue 
-            drafts={drafts} 
+            drafts={displayDrafts} 
             onRefresh={fetchAllData} 
           />
         )}
 
         {activeTab === 'runs' && (
           <RunControlsAndLogs 
-            topics={topics}
-            runLogs={runLogs}
+            topics={displayTopics}
+            runLogs={selectedSiteId ? runLogs.filter(l => l.site_id === selectedSiteId) : runLogs}
             schedulerStatus={schedulerStatus}
             onTriggerRun={handleTriggerRun}
             onRefresh={fetchAllData}

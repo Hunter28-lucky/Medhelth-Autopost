@@ -5,7 +5,7 @@ services:
     plan: free
     region: oregon
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/topics
+    healthCheckPath: /api/health
     envVars:
       - key: AI_PROVIDER
         value: openrouter

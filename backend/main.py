@@ -7,13 +7,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select, desc, delete
+from sqlalchemy import select, desc, delete, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import settings
 from backend.database import init_db, get_db, AsyncSessionLocal
-from backend.models import Topic, ContentRule, GeneratedPost, RunLog
+from backend.models import Topic, ContentRule, GeneratedPost, RunLog, ManagedSite, ResearchArticle
 from backend.schemas import (
+    SiteCreate, SiteUpdate, SiteResponse, SiteTestResponse,
     TopicCreate, TopicUpdate, TopicResponse, TopicBulkImport,
     ContentRuleResponse, ContentRuleUpdate,
     GeneratedPostResponse, DraftReviewAction,
@@ -39,13 +40,42 @@ logger = logging.getLogger("publisher.api")
 pipeline = PublishingPipeline()
 
 async def seed_initial_data():
-    """Seed initial topics and content rules if database is fresh."""
+    """Seed initial managed sites, topics, and content rules if database is fresh."""
     async with AsyncSessionLocal() as session:
-        # Check topics
+        # 1. Ensure Primary Site #1 (MedHealth Times) exists
+        site_res = await session.execute(select(ManagedSite).where(ManagedSite.id == 1))
+        primary_site = site_res.scalars().first()
+        if not primary_site:
+            primary_site = ManagedSite(
+                id=1,
+                name="MedHealth Times",
+                slug="medhealthtimes",
+                wp_url=settings.WORDPRESS_URL,
+                wp_api_key=settings.WORDPRESS_API_KEY,
+                description="Primary Medical & Clinical AI Journalism Publication",
+                is_active=True,
+                auto_push_to_wp=settings.AUTO_PUSH_TO_WP,
+                is_scheduler_enabled=settings.SCHEDULER_ENABLED,
+                schedule_interval_hours=settings.SCHEDULER_INTERVAL_HOURS
+            )
+            session.add(primary_site)
+            await session.commit()
+            logger.info("Seeded Primary Managed Site #1: MedHealth Times.")
+
+        # 2. Backfill existing records missing site_id
+        await session.execute(update(Topic).where(Topic.site_id == None).values(site_id=1))
+        await session.execute(update(ContentRule).where(ContentRule.site_id == None).values(site_id=1))
+        await session.execute(update(ResearchArticle).where(ResearchArticle.site_id == None).values(site_id=1))
+        await session.execute(update(GeneratedPost).where(GeneratedPost.site_id == None).values(site_id=1))
+        await session.execute(update(RunLog).where(RunLog.site_id == None).values(site_id=1, site_name="MedHealth Times"))
+        await session.commit()
+
+        # 3. Check topics
         topic_count_res = await session.execute(select(Topic))
         if not topic_count_res.scalars().first():
             default_topics = [
                 Topic(
+                    site_id=1,
                     name="AI in Diagnostics",
                     keywords=["medical imaging AI", "CT scan deep learning", "radiomics biomarker", "computational pathology"],
                     weight=9,
@@ -54,6 +84,7 @@ async def seed_initial_data():
                     lookback_days=7
                 ),
                 Topic(
+                    site_id=1,
                     name="Cardiology Breakthroughs",
                     keywords=["mRNA heart repair", "transcatheter valves", "cardiac myocyte regeneration", "heart failure clinical trial"],
                     weight=8,
@@ -62,6 +93,7 @@ async def seed_initial_data():
                     lookback_days=7
                 ),
                 Topic(
+                    site_id=1,
                     name="FDA Drug Approvals",
                     keywords=["FDA oncology approval", "novel therapeutics", "accelerated approval", "bispecific antibody"],
                     weight=8,
@@ -70,6 +102,7 @@ async def seed_initial_data():
                     lookback_days=14
                 ),
                 Topic(
+                    site_id=1,
                     name="Mental Health Tech",
                     keywords=["digital phenotyping biomarkers", "psychiatric actigraphy", "depression digital therapeutics", "wearable EEG"],
                     weight=7,
@@ -78,6 +111,7 @@ async def seed_initial_data():
                     lookback_days=14
                 ),
                 Topic(
+                    site_id=1,
                     name="Genomic & Base Editing",
                     keywords=["in vivo base editing", "CRISPR therapeutic trial", "gene therapy rare disease", "targeted LNP"],
                     weight=6,
@@ -89,10 +123,11 @@ async def seed_initial_data():
             session.add_all(default_topics)
             logger.info("Seeded 5 default medical & AI topics.")
 
-        # Check content rules
-        rule_res = await session.execute(select(ContentRule))
+        # 4. Check content rules
+        rule_res = await session.execute(select(ContentRule).where(ContentRule.site_id == 1))
         if not rule_res.scalars().first():
             default_rule = ContentRule(
+                site_id=1,
                 name="Default Clinical SEO Guidelines",
                 is_active=True,
                 tone="Professional & Journalistic",
@@ -110,7 +145,7 @@ async def seed_initial_data():
                 auto_push_to_wp=settings.AUTO_PUSH_TO_WP
             )
             session.add(default_rule)
-            logger.info("Seeded default Content Rules.")
+            logger.info("Seeded default Content Rules for Site #1.")
 
         await session.commit()
 
@@ -140,6 +175,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ==============================================================================
+# SYSTEM HEALTH & UPTIME MONITORING
+# ==============================================================================
+
+@app.get("/api/health")
+async def system_health_check():
+    """Lightweight health check endpoint for Render.com and monitoring services."""
+    return {
+        "status": "ok",
+        "service": "PulsePublish AI Multi-Site Auto-Publisher",
+        "developer": settings.DEVELOPER_NAME,
+        "version": settings.VERSION
+    }
 
 # ==============================================================================
 # DEVELOPER AUTHENTICATION (KRISH GOSWAMI)
@@ -174,33 +223,317 @@ async def verify_developer_session(developer: str = Depends(require_developer)):
     }
 
 # ==============================================================================
+# MANAGED SITES ENDPOINTS (MULTI-SITE PUBLISHING HUB)
+# ==============================================================================
+
+@app.get("/api/sites", response_model=List[SiteResponse])
+async def list_managed_sites(db: AsyncSession = Depends(get_db)):
+    """List all managed websites with live topics, drafts, and published counts."""
+    sites_res = await db.execute(select(ManagedSite).order_by(ManagedSite.id))
+    sites = sites_res.scalars().all()
+    
+    response = []
+    for s in sites:
+        t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == s.id))).scalar() or 0
+        d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
+        p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
+        masked_key = (s.wp_api_key[:3] + "..." + s.wp_api_key[-4:]) if len(s.wp_api_key) > 7 else "••••••••"
+        
+        response.append(SiteResponse(
+            id=s.id,
+            name=s.name,
+            slug=s.slug,
+            wp_url=s.wp_url,
+            wp_api_key_masked=masked_key,
+            description=s.description,
+            is_active=s.is_active,
+            auto_push_to_wp=s.auto_push_to_wp,
+            is_scheduler_enabled=s.is_scheduler_enabled,
+            schedule_interval_hours=s.schedule_interval_hours,
+            topics_count=t_count,
+            drafts_count=d_count,
+            published_count=p_count,
+            created_at=s.created_at,
+            updated_at=s.updated_at
+        ))
+    return response
+
+@app.post("/api/sites", response_model=SiteResponse, status_code=201, dependencies=[Depends(require_developer)])
+async def create_managed_site(site_in: SiteCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new managed website for auto-publishing."""
+    slug = site_in.slug or re.sub(r'[^a-z0-9]+', '-', site_in.name.lower()).strip('-')
+    
+    existing = await db.execute(select(ManagedSite).where(ManagedSite.slug == slug))
+    if existing.scalars().first():
+        slug = f"{slug}-{int(datetime.datetime.utcnow().timestamp())}"
+
+    new_site = ManagedSite(
+        name=site_in.name.strip(),
+        slug=slug,
+        wp_url=site_in.wp_url.strip().rstrip('/'),
+        wp_api_key=site_in.wp_api_key.strip(),
+        description=site_in.description,
+        is_active=site_in.is_active,
+        auto_push_to_wp=site_in.auto_push_to_wp,
+        is_scheduler_enabled=site_in.is_scheduler_enabled,
+        schedule_interval_hours=site_in.schedule_interval_hours
+    )
+    db.add(new_site)
+    await db.commit()
+    await db.refresh(new_site)
+    
+    # Create isolated default content rule for this site
+    site_rule = ContentRule(
+        site_id=new_site.id,
+        name=f"Publishing Rules for {new_site.name}",
+        tone="Professional & Informative",
+        reading_level="General Public (Clear, Accessible)",
+        word_count_min=450,
+        word_count_max=520,
+        heading_structure="<h6><strong>Heading Title</strong></h6>",
+        disclaimer_text=f"Disclaimer: This article on {new_site.name} is for informational purposes only.",
+        style_guide_text="Maintain editorial accuracy and authoritative analysis.",
+        auto_push_to_wp=new_site.auto_push_to_wp,
+        enforce_yoast_green=True
+    )
+    db.add(site_rule)
+    await db.commit()
+
+    masked_key = (new_site.wp_api_key[:3] + "..." + new_site.wp_api_key[-4:]) if len(new_site.wp_api_key) > 7 else "••••••••"
+    return SiteResponse(
+        id=new_site.id,
+        name=new_site.name,
+        slug=new_site.slug,
+        wp_url=new_site.wp_url,
+        wp_api_key_masked=masked_key,
+        description=new_site.description,
+        is_active=new_site.is_active,
+        auto_push_to_wp=new_site.auto_push_to_wp,
+        is_scheduler_enabled=new_site.is_scheduler_enabled,
+        schedule_interval_hours=new_site.schedule_interval_hours,
+        topics_count=0,
+        drafts_count=0,
+        published_count=0,
+        created_at=new_site.created_at,
+        updated_at=new_site.updated_at
+    )
+
+@app.get("/api/sites/{site_id}", response_model=SiteResponse)
+async def get_managed_site(site_id: int, db: AsyncSession = Depends(get_db)):
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+    
+    t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == site.id))).scalar() or 0
+    d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
+    p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
+    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if len(site.wp_api_key) > 7 else "••••••••"
+    
+    return SiteResponse(
+        id=site.id,
+        name=site.name,
+        slug=site.slug,
+        wp_url=site.wp_url,
+        wp_api_key_masked=masked_key,
+        description=site.description,
+        is_active=site.is_active,
+        auto_push_to_wp=site.auto_push_to_wp,
+        is_scheduler_enabled=site.is_scheduler_enabled,
+        schedule_interval_hours=site.schedule_interval_hours,
+        topics_count=t_count,
+        drafts_count=d_count,
+        published_count=p_count,
+        created_at=site.created_at,
+        updated_at=site.updated_at
+    )
+
+@app.put("/api/sites/{site_id}", response_model=SiteResponse, dependencies=[Depends(require_developer)])
+async def update_managed_site(site_id: int, site_in: SiteUpdate, db: AsyncSession = Depends(get_db)):
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    update_data = site_in.model_dump(exclude_unset=True)
+    if "wp_url" in update_data and update_data["wp_url"]:
+        update_data["wp_url"] = update_data["wp_url"].strip().rstrip('/')
+    if "wp_api_key" in update_data and update_data["wp_api_key"]:
+        update_data["wp_api_key"] = update_data["wp_api_key"].strip()
+
+    for key, val in update_data.items():
+        setattr(site, key, val)
+
+    await db.commit()
+    await db.refresh(site)
+
+    t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == site.id))).scalar() or 0
+    d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
+    p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
+    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if len(site.wp_api_key) > 7 else "••••••••"
+
+    return SiteResponse(
+        id=site.id,
+        name=site.name,
+        slug=site.slug,
+        wp_url=site.wp_url,
+        wp_api_key_masked=masked_key,
+        description=site.description,
+        is_active=site.is_active,
+        auto_push_to_wp=site.auto_push_to_wp,
+        is_scheduler_enabled=site.is_scheduler_enabled,
+        schedule_interval_hours=site.schedule_interval_hours,
+        topics_count=t_count,
+        drafts_count=d_count,
+        published_count=p_count,
+        created_at=site.created_at,
+        updated_at=site.updated_at
+    )
+
+@app.delete("/api/sites/{site_id}", status_code=204, dependencies=[Depends(require_developer)])
+async def delete_managed_site(site_id: int, db: AsyncSession = Depends(get_db)):
+    if site_id == 1:
+        raise HTTPException(status_code=400, detail="The Primary Site (MedHealth Times) cannot be deleted.")
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+    await db.delete(site)
+    await db.commit()
+    return None
+
+@app.post("/api/sites/{site_id}/test-wordpress", response_model=SiteTestResponse, dependencies=[Depends(require_developer)])
+async def test_site_wordpress_connection(site_id: int, db: AsyncSession = Depends(get_db)):
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+    
+    client = WordPressClient(base_url=site.wp_url, api_key=site.wp_api_key)
+    res = client.check_connection()
+    return SiteTestResponse(
+        connected=res.get("connected", False),
+        status_code=res.get("status_code", 0),
+        message=res.get("message", "Connection test completed."),
+        site_name=res.get("site_name"),
+        plugin_version=res.get("plugin_version")
+    )
+
+@app.post("/api/sites/{site_id}/seed-presets", dependencies=[Depends(require_developer)])
+async def seed_site_topic_presets(
+    site_id: int,
+    preset_type: str = Query("tech_ai", description="Preset category: 'tech_ai', 'finance_crypto', 'clean_energy', 'lifestyle'"),
+    db: AsyncSession = Depends(get_db)
+):
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    PRESET_PACKS = {
+        "tech_ai": [
+            ("Generative AI & LLMs", ["large language models", "generative AI agents", "transformer architectures", "multimodal AI", "open source models"], 9),
+            ("Cybersecurity & Zero Trust", ["zero trust architecture", "ransomware defense", "quantum cryptography", "cloud security vulnerabilities"], 8),
+            ("Autonomous Robotics", ["humanoid robot development", "industrial autonomous robotics", "computer vision edge AI"], 7),
+            ("Cloud Infrastructure", ["serverless computing", "Kubernetes orchestration", "edge computing infrastructure", "distributed systems"], 7),
+            ("Quantum Computing", ["quantum supremacy algorithms", "qubit coherence error correction", "quantum annealing"], 8)
+        ],
+        "finance_crypto": [
+            ("Decentralized Finance", ["DeFi protocols yield", "smart contract auditing", "liquid staking derivatives"], 9),
+            ("Central Bank Digital Currencies", ["CBDC regulatory rollout", "cross-border digital settlement", "sovereign digital currency"], 8),
+            ("Algorithmic Trading", ["high frequency trading AI", "market liquidity modeling", "quantitative arbitrage"], 7),
+            ("FinTech & Open Banking", ["open banking API regulation", "embedded finance infrastructure", "neobank profitability"], 7),
+            ("Crypto Asset Regulations", ["SEC crypto classification", "MiCA regulatory compliance", "spot ETF institutional flows"], 8)
+        ],
+        "clean_energy": [
+            ("Grid-Scale Battery Storage", ["solid-state battery grid", "lithium iron phosphate storage", "flow battery renewable integration"], 9),
+            ("Solar Photovoltaic Advances", ["perovskite tandem solar cells", "bifacial panel efficiency", "commercial rooftop solar"], 8),
+            ("Green Hydrogen Economy", ["PEM electrolyzer efficiency", "green hydrogen industrial adoption", "clean fuel infrastructure"], 8),
+            ("Next-Gen Nuclear SMRs", ["small modular reactors SMR", "molten salt nuclear safety", "nuclear fusion milestone"], 9),
+            ("Electric Mobility", ["EV fast-charging infrastructure", "silicon anode battery range", "commercial fleet electrification"], 7)
+        ],
+        "lifestyle": [
+            ("Sleep Optimization & Longevity", ["circadian rhythm optimization", "deep sleep wearable tracking", "NAD+ longevity cellular health"], 8),
+            ("Nutritional Science & Gut Health", ["microbiome diversity prebiotic", "metabolic flexibility diet", "intermittent fasting biomarker"], 8),
+            ("Mental Resilience & Mindfulness", ["neuroplasticity mindfulness practice", "stress cortisol biofeedback", "vagus nerve stimulation"], 7),
+            ("Physical Recovery & Mobility", ["fascia release mobility training", "cold thermogenesis recovery", "zone 2 cardio mitochondrial density"], 7),
+            ("Biohacking & Preventative Wellness", ["biological age epigenetic clock", "continuous biomarker tracking", "mitochondrial biogenesis wellness"], 9)
+        ]
+    }
+
+    pack = PRESET_PACKS.get(preset_type, PRESET_PACKS["tech_ai"])
+    created = 0
+    for name, kws, weight in pack:
+        exists = await db.execute(
+            select(Topic).where(Topic.site_id == site_id, Topic.name == name)
+        )
+        if not exists.scalars().first():
+            t = Topic(
+                site_id=site_id,
+                name=name,
+                keywords=kws,
+                weight=weight,
+                is_active=True,
+                lookback_days=7
+            )
+            db.add(t)
+            created += 1
+    await db.commit()
+    return {"success": True, "created_topics_count": created, "preset": preset_type, "site_name": site.name}
+
+# ==============================================================================
 # TOPICS ENDPOINTS
 # ==============================================================================
 
 @app.get("/api/topics", response_model=List[TopicResponse])
-async def list_topics(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Topic).order_by(desc(Topic.weight), Topic.name))
-    return result.scalars().all()
+async def list_topics(site_id: Optional[int] = Query(None), db: AsyncSession = Depends(get_db)):
+    stmt = select(Topic)
+    if site_id is not None:
+        stmt = stmt.where(Topic.site_id == site_id)
+    stmt = stmt.order_by(desc(Topic.weight), Topic.name)
+    result = await db.execute(stmt)
+    topics = result.scalars().all()
+
+    site_cache = {}
+    response = []
+    for t in topics:
+        sid = t.site_id or 1
+        if sid not in site_cache:
+            s = await db.get(ManagedSite, sid)
+            site_cache[sid] = s.name if s else "MedHealth Times"
+        t_dict = TopicResponse.model_validate(t).model_dump()
+        t_dict["site_name"] = site_cache[sid]
+        response.append(t_dict)
+    return response
 
 @app.post("/api/topics", response_model=TopicResponse, status_code=201, dependencies=[Depends(require_developer)])
 async def create_topic(topic_in: TopicCreate, db: AsyncSession = Depends(get_db)):
-    # Check duplicate name
-    existing = await db.execute(select(Topic).where(Topic.name == topic_in.name))
+    target_site_id = topic_in.site_id or 1
+    # Check duplicate name within this specific site
+    existing = await db.execute(
+        select(Topic).where(Topic.site_id == target_site_id, Topic.name == topic_in.name)
+    )
     if existing.scalars().first():
-        raise HTTPException(status_code=400, detail="A topic category with this name already exists.")
+        raise HTTPException(status_code=400, detail=f"A topic category with name '{topic_in.name}' already exists on this website.")
 
-    topic = Topic(**topic_in.model_dump())
+    topic_data = topic_in.model_dump()
+    topic_data["site_id"] = target_site_id
+    topic = Topic(**topic_data)
     db.add(topic)
     await db.commit()
     await db.refresh(topic)
-    return topic
+
+    site = await db.get(ManagedSite, target_site_id)
+    t_dict = TopicResponse.model_validate(topic).model_dump()
+    t_dict["site_name"] = site.name if site else "MedHealth Times"
+    return t_dict
 
 @app.get("/api/topics/{topic_id}", response_model=TopicResponse)
 async def get_topic(topic_id: int, db: AsyncSession = Depends(get_db)):
     topic = await db.get(Topic, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
-    return topic
+    
+    sid = topic.site_id or 1
+    site = await db.get(ManagedSite, sid)
+    t_dict = TopicResponse.model_validate(topic).model_dump()
+    t_dict["site_name"] = site.name if site else "MedHealth Times"
+    return t_dict
 
 @app.put("/api/topics/{topic_id}", response_model=TopicResponse, dependencies=[Depends(require_developer)])
 async def update_topic(topic_id: int, topic_in: TopicUpdate, db: AsyncSession = Depends(get_db)):
@@ -214,7 +547,12 @@ async def update_topic(topic_id: int, topic_in: TopicUpdate, db: AsyncSession = 
 
     await db.commit()
     await db.refresh(topic)
-    return topic
+    
+    sid = topic.site_id or 1
+    site = await db.get(ManagedSite, sid)
+    t_dict = TopicResponse.model_validate(topic).model_dump()
+    t_dict["site_name"] = site.name if site else "MedHealth Times"
+    return t_dict
 
 @app.delete("/api/topics/{topic_id}", status_code=204, dependencies=[Depends(require_developer)])
 async def delete_topic(topic_id: int, db: AsyncSession = Depends(get_db)):
@@ -230,9 +568,9 @@ async def bulk_import_topics(payload: TopicBulkImport, db: AsyncSession = Depend
     """
     Parses bulk text formatted as:
     Topic Name: keyword1, keyword2, keyword3
-    or individual lines of topics/keywords.
     """
     created_topics = []
+    target_site_id = payload.site_id or 1
     lines = [line.strip() for line in payload.raw_text.splitlines() if line.strip()]
 
     for line in lines:
@@ -248,16 +586,18 @@ async def bulk_import_topics(payload: TopicBulkImport, db: AsyncSession = Depend
         if not name:
             continue
 
-        existing = await db.execute(select(Topic).where(Topic.name == name))
+        existing = await db.execute(
+            select(Topic).where(Topic.site_id == target_site_id, Topic.name == name)
+        )
         topic = existing.scalars().first()
         if topic:
-            # Merge keywords
             current_kws = set(topic.keywords or [])
             current_kws.update(keywords)
             topic.keywords = list(current_kws)
             created_topics.append(topic)
         else:
             topic = Topic(
+                site_id=target_site_id,
                 name=name,
                 keywords=keywords,
                 weight=5,
@@ -268,32 +608,62 @@ async def bulk_import_topics(payload: TopicBulkImport, db: AsyncSession = Depend
             created_topics.append(topic)
 
     await db.commit()
+    
+    site = await db.get(ManagedSite, target_site_id)
+    site_name = site.name if site else "MedHealth Times"
+    
+    response = []
     for t in created_topics:
         await db.refresh(t)
+        t_dict = TopicResponse.model_validate(t).model_dump()
+        t_dict["site_name"] = site_name
+        response.append(t_dict)
 
-    return created_topics
+    return response
 
 # ==============================================================================
-# CONTENT RULES & SEO ENDPOINTS
+# CONTENT RULES & SEO ENDPOINTS (SITE ISOLATED)
 # ==============================================================================
 
 @app.get("/api/content-rules", response_model=ContentRuleResponse)
-async def get_content_rules(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ContentRule).where(ContentRule.is_active == True))
+async def get_content_rules(site_id: Optional[int] = Query(1), db: AsyncSession = Depends(get_db)):
+    target_site_id = site_id or 1
+    result = await db.execute(
+        select(ContentRule).where(ContentRule.site_id == target_site_id, ContentRule.is_active == True)
+    )
     rule = result.scalars().first()
     if not rule:
-        rule = ContentRule()
+        site = await db.get(ManagedSite, target_site_id)
+        site_title = site.name if site else f"Site #{target_site_id}"
+        rule = ContentRule(
+            site_id=target_site_id,
+            name=f"Publishing Rules for {site_title}",
+            tone="Professional & Informative",
+            reading_level="General Public (Clear, Accessible)",
+            word_count_min=450,
+            word_count_max=520,
+            heading_structure="<h6><strong>Heading Title</strong></h6>",
+            disclaimer_text=f"Disclaimer: This article on {site_title} is for informational purposes only.",
+            style_guide_text="Maintain editorial accuracy and authoritative analysis."
+        )
         db.add(rule)
         await db.commit()
         await db.refresh(rule)
     return rule
 
 @app.put("/api/content-rules", response_model=ContentRuleResponse, dependencies=[Depends(require_developer)])
-async def update_content_rules(rules_in: ContentRuleUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ContentRule).where(ContentRule.is_active == True))
+async def update_content_rules(
+    rules_in: ContentRuleUpdate,
+    site_id: Optional[int] = Query(1),
+    db: AsyncSession = Depends(get_db)
+):
+    target_site_id = site_id or 1
+    result = await db.execute(
+        select(ContentRule).where(ContentRule.site_id == target_site_id, ContentRule.is_active == True)
+    )
     rule = result.scalars().first()
     if not rule:
-        rule = ContentRule()
+        rule = ContentRule(site_id=target_site_id)
         db.add(rule)
 
     update_data = rules_in.model_dump(exclude_unset=True)
@@ -324,7 +694,7 @@ async def trigger_run(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Trigger a run immediately for a specific topic, or all active topics.
+    Trigger a run immediately for a specific topic, or all active topics of a site.
     """
     if payload.topic_id:
         topic = await db.get(Topic, payload.topic_id)
@@ -333,20 +703,33 @@ async def trigger_run(
         background_tasks.add_task(run_pipeline_task, payload.topic_id, payload.force_fresh_search)
         return {"status": "queued", "message": f"Run queued for topic: {topic.name}"}
     else:
-        # Trigger for all active topics
-        result = await db.execute(select(Topic).where(Topic.is_active == True))
+        # Trigger for active topics of specified site (or all active if none specified)
+        stmt = select(Topic).where(Topic.is_active == True)
+        if payload.site_id:
+            stmt = stmt.where(Topic.site_id == payload.site_id)
+        stmt = stmt.order_by(desc(Topic.weight))
+        result = await db.execute(stmt)
         active_topics = result.scalars().all()
         if not active_topics:
-            raise HTTPException(status_code=400, detail="No active topics found.")
+            raise HTTPException(status_code=400, detail="No active topics found for this selection.")
 
-        for t in active_topics:
+        to_run = active_topics[:3] if len(active_topics) > 3 else active_topics
+        for t in to_run:
             background_tasks.add_task(run_pipeline_task, t.id, payload.force_fresh_search)
 
-        return {"status": "queued", "message": f"Runs queued for {len(active_topics)} active topics."}
+        return {"status": "queued", "message": f"Runs queued for {len(to_run)} active topics."}
 
 @app.get("/api/runs/history", response_model=List[RunLogResponse])
-async def get_run_history(limit: int = 50, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(RunLog).order_by(desc(RunLog.started_at)).limit(limit))
+async def get_run_history(
+    site_id: Optional[int] = Query(None),
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(RunLog)
+    if site_id is not None:
+        stmt = stmt.where(RunLog.site_id == site_id)
+    stmt = stmt.order_by(desc(RunLog.started_at)).limit(limit)
+    result = await db.execute(stmt)
     return result.scalars().all()
 
 @app.get("/api/runs/{run_id}", response_model=RunLogResponse)
@@ -364,21 +747,41 @@ async def get_run_detail(run_id: str, db: AsyncSession = Depends(get_db)):
 @app.get("/api/drafts", response_model=List[GeneratedPostResponse])
 async def list_drafts(
     status: Optional[str] = None,
+    site_id: Optional[int] = Query(None),
     limit: int = 50,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(GeneratedPost).order_by(desc(GeneratedPost.created_at)).limit(limit)
+    query = select(GeneratedPost)
     if status:
         query = query.where(GeneratedPost.status == status)
+    if site_id is not None:
+        query = query.where(GeneratedPost.site_id == site_id)
+    query = query.order_by(desc(GeneratedPost.created_at)).limit(limit)
     result = await db.execute(query)
-    return result.scalars().all()
+    posts = result.scalars().all()
+
+    site_cache = {}
+    response = []
+    for p in posts:
+        sid = p.site_id or 1
+        if sid not in site_cache:
+            s = await db.get(ManagedSite, sid)
+            site_cache[sid] = s.name if s else "MedHealth Times"
+        p_dict = GeneratedPostResponse.model_validate(p).model_dump()
+        p_dict["site_name"] = site_cache[sid]
+        response.append(p_dict)
+    return response
 
 @app.get("/api/drafts/{post_id}", response_model=GeneratedPostResponse)
 async def get_draft(post_id: int, db: AsyncSession = Depends(get_db)):
     post = await db.get(GeneratedPost, post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Draft not found")
-    return post
+    sid = post.site_id or 1
+    site = await db.get(ManagedSite, sid)
+    p_dict = GeneratedPostResponse.model_validate(post).model_dump()
+    p_dict["site_name"] = site.name if site else "MedHealth Times"
+    return p_dict
 
 @app.post("/api/drafts/{post_id}/action", dependencies=[Depends(require_developer)])
 async def review_draft_action(

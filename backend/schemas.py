@@ -2,8 +2,61 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+# --- Managed Site Schemas ---
+class SiteBase(BaseModel):
+    name: str = Field(..., description="Display name of the website")
+    slug: Optional[str] = Field(None, description="Unique slug identifier (generated if omitted)")
+    wp_url: str = Field(..., description="WordPress site base URL")
+    wp_api_key: str = Field(..., description="WordPress stealth API key (X-Pulse-Sync-Key)")
+    description: Optional[str] = Field(None, description="Niche or content focus description")
+    is_active: bool = Field(True, description="Whether this site is active")
+    auto_push_to_wp: bool = Field(False, description="Whether to automatically push approved drafts to WordPress")
+    is_scheduler_enabled: bool = Field(False, description="Whether the background cron scheduler runs for this site")
+    schedule_interval_hours: int = Field(6, ge=1, le=168, description="Cron interval in hours")
+
+class SiteCreate(SiteBase):
+    pass
+
+class SiteUpdate(BaseModel):
+    name: Optional[str] = None
+    wp_url: Optional[str] = None
+    wp_api_key: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    auto_push_to_wp: Optional[bool] = None
+    is_scheduler_enabled: Optional[bool] = None
+    schedule_interval_hours: Optional[int] = Field(None, ge=1, le=168)
+
+class SiteResponse(BaseModel):
+    id: int
+    name: str
+    slug: str
+    wp_url: str
+    wp_api_key_masked: str
+    description: Optional[str] = None
+    is_active: bool
+    auto_push_to_wp: bool
+    is_scheduler_enabled: bool
+    schedule_interval_hours: int
+    topics_count: int = 0
+    drafts_count: int = 0
+    published_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class SiteTestResponse(BaseModel):
+    connected: bool
+    status_code: int
+    message: str
+    site_name: Optional[str] = None
+    plugin_version: Optional[str] = None
+
 # --- Topic Schemas ---
 class TopicBase(BaseModel):
+    site_id: Optional[int] = Field(1, description="Associated Managed Site ID")
     name: str = Field(..., description="Unique name of the topic category")
     keywords: List[str] = Field(default_factory=list, description="Search queries / keywords")
     weight: int = Field(5, ge=1, le=10, description="Priority weight 1-10")
@@ -16,6 +69,7 @@ class TopicCreate(TopicBase):
     pass
 
 class TopicUpdate(BaseModel):
+    site_id: Optional[int] = None
     name: Optional[str] = None
     keywords: Optional[List[str]] = None
     weight: Optional[int] = Field(None, ge=1, le=10)
@@ -26,6 +80,7 @@ class TopicUpdate(BaseModel):
 
 class TopicResponse(TopicBase):
     id: int
+    site_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -33,10 +88,12 @@ class TopicResponse(TopicBase):
         from_attributes = True
 
 class TopicBulkImport(BaseModel):
+    site_id: Optional[int] = Field(1, description="Associated Managed Site ID")
     raw_text: str = Field(..., description="Bulk raw text of topics/keywords to parse")
 
 # --- Content Rules Schemas ---
 class ContentRuleBase(BaseModel):
+    site_id: Optional[int] = Field(1, description="Associated Managed Site ID")
     name: str = "Default Publishing Rules"
     is_active: bool = True
     tone: str = "Professional & Informative"
@@ -95,6 +152,7 @@ class ContentRuleResponse(ContentRuleBase):
 # --- Research Article Schemas ---
 class ResearchArticleResponse(BaseModel):
     id: int
+    site_id: Optional[int] = 1
     topic_id: Optional[int]
     run_id: str
     url: str
@@ -110,6 +168,8 @@ class ResearchArticleResponse(BaseModel):
 # --- Generated Post Schemas ---
 class GeneratedPostResponse(BaseModel):
     id: int
+    site_id: Optional[int] = 1
+    site_name: Optional[str] = None
     topic_id: Optional[int]
     run_id: str
     title: str
@@ -157,11 +217,14 @@ class DraftBulkDeleteResponse(BaseModel):
 
 # --- Run & Scheduler Schemas ---
 class RunTriggerRequest(BaseModel):
+    site_id: Optional[int] = Field(None, description="Target site ID (null executes for active topic/site)")
     topic_id: Optional[int] = Field(None, description="Specific topic to run, or null to run all active")
     force_fresh_search: bool = True
 
 class RunLogResponse(BaseModel):
     id: int
+    site_id: Optional[int] = 1
+    site_name: Optional[str] = "MedHealth Times"
     run_id: str
     topic_id: Optional[int]
     topic_name: str

@@ -33,3 +33,4 @@ window.fetch = async function (resource, config = {}) {
 export const getDeveloperToken = () => localStorage.getItem('pulse_dev_token');
 export const setDeveloperToken = (token) => localStorage.setItem('pulse_dev_token', token);
 export const removeDeveloperToken = () => localStorage.removeItem('pulse_dev_token');
+export const authFetch = (resource, config = {}) => fetch(resource, config);

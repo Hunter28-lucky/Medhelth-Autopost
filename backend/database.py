@@ -24,6 +24,28 @@ async def get_db():
         finally:
             await session.close()
 
+def _migrate_sqlite_schema(sync_conn):
+    """Safely adds missing columns to existing SQLite database tables."""
+    cursor = sync_conn.connection.cursor()
+    columns_to_ensure = [
+        ("topics", "site_id", "INTEGER DEFAULT 1"),
+        ("content_rules", "site_id", "INTEGER DEFAULT 1"),
+        ("research_articles", "site_id", "INTEGER DEFAULT 1"),
+        ("generated_posts", "site_id", "INTEGER DEFAULT 1"),
+        ("run_logs", "site_id", "INTEGER DEFAULT 1"),
+        ("run_logs", "site_name", "VARCHAR(255) DEFAULT 'MedHealth Times'"),
+    ]
+    for table_name, col_name, col_def in columns_to_ensure:
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            existing_cols = [row[1] for row in cursor.fetchall()]
+            if existing_cols and col_name not in existing_cols:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}")
+        except Exception:
+            pass
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if "sqlite" in settings.DATABASE_URL:
+            await conn.run_sync(_migrate_sqlite_schema)

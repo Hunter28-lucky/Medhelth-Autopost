@@ -121,6 +121,12 @@ class WordPressClient:
         """
         Send a post draft to WordPress with retry logic and endpoint fallback.
         """
+        # System-Grade Safety Guarantee:
+        # Explicitly strip any 'id' or 'post_id' from payload to guarantee strictly
+        # additive draft insertion on WordPress. Existing posts and human-written articles
+        # can NEVER be overwritten, modified, or deleted.
+        safe_payload = {k: v for k, v in post_payload.items() if k.lower() not in ("id", "post_id", "import_id")}
+
         endpoints = self._get_candidate_endpoints("post")
         headers = self.get_headers()
 
@@ -130,7 +136,7 @@ class WordPressClient:
                 try:
                     resp = requests.post(
                         endpoint,
-                        json=post_payload,
+                        json=safe_payload,
                         headers=headers,
                         timeout=self.timeout
                     )

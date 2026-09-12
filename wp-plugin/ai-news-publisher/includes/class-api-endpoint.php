@@ -106,6 +106,9 @@ class AI_News_Publisher_Endpoint {
             return new WP_Error('missing_field', 'The "body_html" field is required.', array('status' => 422));
         }
 
+        // System-Grade Safety: Strip any ID parameter to enforce additive-only draft creation
+        unset($data['id'], $data['ID'], $data['post_id'], $data['import_id']);
+
         $result = $this->post_creator->create_draft_post($data);
 
         if (is_wp_error($result)) {

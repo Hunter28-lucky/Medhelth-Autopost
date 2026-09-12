@@ -4,7 +4,7 @@ import {
   Search, X, AlertCircle 
 } from 'lucide-react';
 
-export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
+export default function TopicManager({ topics, selectedSiteId, sites = [], onRefresh, onTriggerRun }) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState(null);
@@ -18,11 +18,13 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
     is_active: true,
     domain_whitelist: '',
     domain_blocklist: '',
-    lookback_days: 7
+    lookback_days: 7,
+    site_id: selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1)
   });
 
   // Bulk import state
   const [bulkText, setBulkText] = useState('');
+  const [bulkSiteId, setBulkSiteId] = useState(selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1));
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkMessage, setBulkMessage] = useState(null);
 
@@ -35,7 +37,8 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
       is_active: true,
       domain_whitelist: '',
       domain_blocklist: '',
-      lookback_days: 7
+      lookback_days: 7,
+      site_id: selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1)
     });
     setIsAddOpen(true);
   };
@@ -49,13 +52,15 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
       is_active: topic.is_active,
       domain_whitelist: (topic.domain_whitelist || []).join(', '),
       domain_blocklist: (topic.domain_blocklist || []).join(', '),
-      lookback_days: topic.lookback_days || 7
+      lookback_days: topic.lookback_days || 7,
+      site_id: topic.site_id || (selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1))
     });
     setIsAddOpen(true);
   };
 
   const handleSaveTopic = async (e) => {
     e.preventDefault();
+    const targetSiteId = formData.site_id ? parseInt(formData.site_id, 10) : (selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1));
     const payload = {
       name: formData.name.trim(),
       keywords: formData.keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -63,7 +68,8 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
       is_active: formData.is_active,
       domain_whitelist: formData.domain_whitelist.split(',').map(d => d.trim()).filter(Boolean),
       domain_blocklist: formData.domain_blocklist.split(',').map(d => d.trim()).filter(Boolean),
-      lookback_days: parseInt(formData.lookback_days, 10)
+      lookback_days: parseInt(formData.lookback_days, 10),
+      site_id: targetSiteId
     };
 
     try {
@@ -114,11 +120,12 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
     if (!bulkText.trim()) return;
     setBulkLoading(true);
     setBulkMessage(null);
+    const targetSiteId = bulkSiteId ? parseInt(bulkSiteId, 10) : (selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1));
     try {
       const res = await fetch('/api/topics/bulk-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ raw_text: bulkText })
+        body: JSON.stringify({ raw_text: bulkText, site_id: targetSiteId })
       });
       const data = await res.json();
       setBulkMessage({ type: 'success', text: `Imported / updated ${data.length} topic categories!` });
@@ -184,9 +191,14 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
                   <h3 style={{ fontSize: '1.15rem', color: '#fff', marginBottom: '4px' }}>{topic.name}</h3>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="badge badge-indigo">Weight: {topic.weight}/10</span>
                     <span className="badge badge-cyan">{topic.lookback_days}d Window</span>
+                    {topic.site_name && (
+                      <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <Globe size={11} /> {topic.site_name}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -276,6 +288,23 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
             </div>
 
             <form onSubmit={handleSaveTopic}>
+              {sites.length > 0 && (
+                <div className="form-group">
+                  <label className="form-label">Target Website</label>
+                  <select 
+                    className="form-input"
+                    value={formData.site_id || (selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1))}
+                    onChange={e => setFormData({ ...formData, site_id: parseInt(e.target.value, 10) })}
+                  >
+                    {sites.map(s => (
+                      <option key={s.id} value={s.id} style={{ background: '#1e293b', color: '#fff' }}>
+                        {s.name} ({s.wp_url})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="form-group">
                 <label className="form-label">Topic Name</label>
                 <input 
@@ -384,6 +413,23 @@ export default function TopicManager({ topics, onRefresh, onTriggerRun }) {
                 <X size={18} />
               </button>
             </div>
+
+            {sites.length > 0 && (
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label className="form-label">Target Website for Import</label>
+                <select 
+                  className="form-input"
+                  value={bulkSiteId || (selectedSiteId ? parseInt(selectedSiteId, 10) : (sites[0]?.id || 1))}
+                  onChange={e => setBulkSiteId(parseInt(e.target.value, 10))}
+                >
+                  {sites.map(s => (
+                    <option key={s.id} value={s.id} style={{ background: '#1e293b', color: '#fff' }}>
+                      {s.name} ({s.wp_url})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">Paste List (Format: Topic Name: kw1, kw2, kw3)</label>

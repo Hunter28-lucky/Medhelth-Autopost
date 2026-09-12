@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Topic, ContentRule, ResearchArticle, GeneratedPost, RunLog
+from backend.models import Topic, ContentRule, ResearchArticle, GeneratedPost, RunLog, ManagedSite
 from backend.services.research_engine import ResearchEngine
 from backend.services.dedup_engine import DeduplicationEngine
 from backend.services.generator_engine import ContentGenerator, clean_semantic_post_html
@@ -52,17 +52,28 @@ class PublishingPipeline:
         if not topic:
             raise ValueError(f"Topic ID {topic_id} not found.")
 
-        # 2. Fetch Active Content Rules
-        rule_stmt = select(ContentRule).where(ContentRule.is_active == True)
+        # 1b. Fetch Associated Managed Site
+        site_id = topic.site_id or 1
+        site = await session.get(ManagedSite, site_id)
+        site_name = site.name if site else "MedHealth Times"
+
+        # 2. Fetch Active Content Rules for this site (fallback to any active rule)
+        rule_stmt = select(ContentRule).where(
+            ContentRule.site_id == site_id,
+            ContentRule.is_active == True
+        )
         rule_result = await session.execute(rule_stmt)
         rules = rule_result.scalars().first()
         if not rules:
-            # Fallback default rule
-            rules = ContentRule()
+            fallback_stmt = select(ContentRule).where(ContentRule.is_active == True)
+            fallback_res = await session.execute(fallback_stmt)
+            rules = fallback_res.scalars().first() or ContentRule(site_id=site_id)
 
         # 3. Create Run Log
         run_log = RunLog(
             run_id=run_id,
+            site_id=site_id,
+            site_name=site_name,
             topic_id=topic.id,
             topic_name=topic.name,
             trigger_type=trigger_type,
@@ -73,15 +84,18 @@ class PublishingPipeline:
         session.add(run_log)
         await session.commit()
 
-        log_step("START", f"Initiated pipeline run for topic '{topic.name}' (Trigger: {trigger_type})")
+        log_step("START", f"Initiated pipeline run for topic '{topic.name}' on site '{site_name}' (Trigger: {trigger_type})")
 
         try:
-            # Query past article URL hashes and post titles to guarantee zero story overlap
-            past_articles_stmt = select(ResearchArticle.url_hash).distinct()
+            # Query past article URL hashes and post titles scoped to this site to guarantee zero story overlap
+            past_articles_stmt = select(ResearchArticle.url_hash).where(ResearchArticle.site_id == site_id).distinct()
             past_articles_res = await session.execute(past_articles_stmt)
             historical_url_hashes = set(past_articles_res.scalars().all())
 
-            past_posts_stmt = select(GeneratedPost.title).where(GeneratedPost.status != "REJECTED")
+            past_posts_stmt = select(GeneratedPost.title).where(
+                GeneratedPost.site_id == site_id,
+                GeneratedPost.status != "REJECTED"
+            )
             past_posts_res = await session.execute(past_posts_stmt)
             historical_titles = [t for t in past_posts_res.scalars().all() if t]
 
@@ -137,6 +151,7 @@ class PublishingPipeline:
             # Save Research Articles in DB
             for art in research_articles:
                 db_art = ResearchArticle(
+                    site_id=site_id,
                     topic_id=topic.id,
                     run_id=run_id,
                     url=art["url"],
@@ -239,6 +254,7 @@ class PublishingPipeline:
             draft_data["body_html"] = clean_body
 
             generated_post = GeneratedPost(
+                site_id=site_id,
                 topic_id=topic.id,
                 run_id=run_id,
                 title=draft_data.get("title", f"Update on {topic.name}"),
@@ -272,10 +288,11 @@ class PublishingPipeline:
 
             # 10. WordPress Submission Decision
             # Check if auto_push is enabled and similarity passed
-            should_auto_push = (settings.AUTO_PUSH_TO_WP or rules.auto_push_to_wp) and post_status == "PENDING_REVIEW"
+            site_auto_push = site.auto_push_to_wp if site else settings.AUTO_PUSH_TO_WP
+            should_auto_push = (site_auto_push or rules.auto_push_to_wp) and post_status == "PENDING_REVIEW"
 
             if should_auto_push:
-                log_step("WP_PUSH", "Auto-push policy active. Submitting Yoast-compliant draft to WordPress via REST API...")
+                log_step("WP_PUSH", f"Auto-push policy active for site '{site_name}'. Submitting Yoast-compliant draft to WordPress via REST API...")
                 wp_payload = {
                     "title": generated_post.title,
                     "body_html": generated_post.body_html,
@@ -293,17 +310,18 @@ class PublishingPipeline:
                     "yoast_readability_score": generated_post.yoast_readability_score,
                     "run_id": run_id
                 }
-                wp_res = self.wp_client.submit_draft_post(wp_payload)
+                target_wp_client = WordPressClient(base_url=site.wp_url, api_key=site.wp_api_key) if site else self.wp_client
+                wp_res = target_wp_client.submit_draft_post(wp_payload)
                 if wp_res.get("success"):
                     generated_post.status = "SENT_TO_WP"
                     generated_post.wp_post_id = wp_res.get("wp_post_id")
                     generated_post.wp_edit_url = wp_res.get("edit_url")
                     generated_post.wp_pushed_at = datetime.datetime.utcnow()
-                    log_step("WP_PUSH_SUCCESS", f"Draft created in WordPress: Post #{wp_res.get('wp_post_id')} ({wp_res.get('edit_url')})")
+                    log_step("WP_PUSH_SUCCESS", f"Draft created in WordPress for site '{site_name}': Post #{wp_res.get('wp_post_id')} ({wp_res.get('edit_url')})")
                 else:
                     log_step("WP_PUSH_FAILED", f"WordPress submission returned error: {wp_res.get('error')}", "warning")
             else:
-                log_step("REVIEW_GATE", "Draft saved in Admin Review Gate. Ready for editorial approval & 1-click push to WordPress.")
+                log_step("REVIEW_GATE", f"Draft saved in Admin Review Gate for site '{site_name}'. Ready for editorial approval & 1-click push to WordPress.")
 
             # 10. Wrap up run log
             run_log.status = "COMPLETED"
@@ -363,7 +381,11 @@ class PublishingPipeline:
             "run_id": post.run_id or "manual-approval"
         }
 
-        wp_res = self.wp_client.submit_draft_post(wp_payload)
+        site_id = post.site_id or 1
+        site = await session.get(ManagedSite, site_id)
+        target_wp_client = WordPressClient(base_url=site.wp_url, api_key=site.wp_api_key) if site else self.wp_client
+
+        wp_res = target_wp_client.submit_draft_post(wp_payload)
         if wp_res.get("success"):
             post.status = "SENT_TO_WP"
             post.wp_post_id = wp_res.get("wp_post_id")
@@ -374,7 +396,7 @@ class PublishingPipeline:
                 "success": True,
                 "wp_post_id": post.wp_post_id,
                 "edit_url": post.wp_edit_url,
-                "message": "Draft post successfully published to WordPress."
+                "message": f"Draft post successfully published to WordPress for site '{site.name if site else 'WordPress'}'. "
             }
         else:
             return {

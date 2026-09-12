@@ -23,7 +23,11 @@ class AI_News_Publisher_Post_Creator {
      * @return array|WP_Error
      */
     public function create_draft_post($data) {
-        // Enforce post status as 'draft' at all times
+        // SYSTEM-GRADE ADDITIVE-ONLY GUARDRAILS:
+        // Guarantee that this connector NEVER updates, overwrites, or deletes any existing post.
+        // Even if an ID or import_id is present in the payload, remove it completely to force
+        // wp_insert_post() to execute an INSERT rather than an UPDATE.
+        // Existing posts, human-written articles, and past archives remain 100% untouched.
         $post_status = 'draft';
 
         $title   = sanitize_text_field($data['title']);
@@ -66,7 +70,7 @@ class AI_News_Publisher_Post_Creator {
         $excerpt = !empty($data['excerpt']) ? sanitize_textarea_field($data['excerpt']) : '';
         $slug    = !empty($data['slug']) ? sanitize_title($data['slug']) : sanitize_title($title);
 
-        // Prepare post array
+        // Prepare post array - strictly omitting ID to prevent any existing post modification
         $post_arr = array(
             'post_title'   => $title,
             'post_content' => $content,
@@ -76,6 +80,10 @@ class AI_News_Publisher_Post_Creator {
             'post_type'    => 'post',
             'post_author'  => get_current_user_id() ?: 1,
         );
+
+        // Extra defensive check: Guarantee ID is never populated
+        unset($post_arr['ID']);
+        unset($post_arr['import_id']);
 
         // Handle Categories
         $cat_ids = array();

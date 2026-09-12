@@ -3,11 +3,34 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, Float, DateTime, 
 from sqlalchemy.orm import relationship
 from backend.database import Base
 
+class ManagedSite(Base):
+    __tablename__ = "managed_sites"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    wp_url = Column(String(512), nullable=False)
+    wp_api_key = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    auto_push_to_wp = Column(Boolean, default=False)
+    is_scheduler_enabled = Column(Boolean, default=False)
+    schedule_interval_hours = Column(Integer, default=6)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    # Relationships
+    topics = relationship("Topic", back_populates="site", cascade="all, delete-orphan")
+    content_rules = relationship("ContentRule", back_populates="site", cascade="all, delete-orphan")
+    posts = relationship("GeneratedPost", back_populates="site", cascade="all, delete-orphan")
+    run_logs = relationship("RunLog", back_populates="site", cascade="all, delete-orphan")
+
 class Topic(Base):
     __tablename__ = "topics"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String(255), unique=True, nullable=False, index=True)
+    site_id = Column(Integer, ForeignKey("managed_sites.id", ondelete="CASCADE"), nullable=True, default=1, index=True)
+    name = Column(String(255), nullable=False, index=True)
     keywords = Column(JSON, default=list)  # List of string search phrases
     weight = Column(Integer, default=5)    # Priority 1-10
     is_active = Column(Boolean, default=True)
@@ -18,6 +41,7 @@ class Topic(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     # Relationships
+    site = relationship("ManagedSite", back_populates="topics")
     posts = relationship("GeneratedPost", back_populates="topic", cascade="all, delete-orphan")
     articles = relationship("ResearchArticle", back_populates="topic", cascade="all, delete-orphan")
 
@@ -25,6 +49,7 @@ class ContentRule(Base):
     __tablename__ = "content_rules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    site_id = Column(Integer, ForeignKey("managed_sites.id", ondelete="CASCADE"), nullable=True, default=1, index=True)
     name = Column(String(255), default="Default Publishing Rules")
     is_active = Column(Boolean, default=True)
     
@@ -79,10 +104,14 @@ class ContentRule(Base):
     
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
+    # Relationships
+    site = relationship("ManagedSite", back_populates="content_rules")
+
 class ResearchArticle(Base):
     __tablename__ = "research_articles"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    site_id = Column(Integer, ForeignKey("managed_sites.id", ondelete="CASCADE"), nullable=True, default=1, index=True)
     topic_id = Column(Integer, ForeignKey("topics.id", ondelete="CASCADE"), nullable=True)
     run_id = Column(String(64), index=True)
     url = Column(String(1024), index=True, nullable=False)
@@ -101,6 +130,7 @@ class GeneratedPost(Base):
     __tablename__ = "generated_posts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    site_id = Column(Integer, ForeignKey("managed_sites.id", ondelete="CASCADE"), nullable=True, default=1, index=True)
     topic_id = Column(Integer, ForeignKey("topics.id", ondelete="SET NULL"), nullable=True)
     run_id = Column(String(64), index=True)
     title = Column(String(512), nullable=False)
@@ -146,12 +176,16 @@ class GeneratedPost(Base):
     
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+    # Relationships
+    site = relationship("ManagedSite", back_populates="posts")
     topic = relationship("Topic", back_populates="posts")
 
 class RunLog(Base):
     __tablename__ = "run_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    site_id = Column(Integer, ForeignKey("managed_sites.id", ondelete="CASCADE"), nullable=True, default=1, index=True)
+    site_name = Column(String(255), nullable=True, default="MedHealth Times")
     run_id = Column(String(64), unique=True, index=True, nullable=False)
     topic_id = Column(Integer, nullable=True)
     topic_name = Column(String(255), nullable=False)
@@ -162,3 +196,6 @@ class RunLog(Base):
     generated_post_id = Column(Integer, nullable=True)
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    site = relationship("ManagedSite", back_populates="run_logs")

@@ -15,8 +15,11 @@ __pycache__/
 .coverage
 htmlcov/
 
-# System files
+# System & DB files
 .DS_Store
 *.log
+*.db
+backend/*.db
+publisher.db
 .vscode/
 .idea/

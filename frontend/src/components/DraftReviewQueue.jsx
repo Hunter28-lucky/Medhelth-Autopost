@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, 
-  Eye, AlertTriangle, Sparkles, X, Send, Trash2
+  Eye, AlertTriangle, Sparkles, X, Send, Trash2, Globe
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 
@@ -341,6 +341,11 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
                   {getStatusBadge(draft.status)}
                   {getSimilarityBadge(draft.similarity_score, draft.similarity_status)}
+                  {draft.site_name && (
+                    <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Globe size={11} /> {draft.site_name}
+                    </span>
+                  )}
                   <span 
                     className="badge badge-emerald" 
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 8px' }}
@@ -438,9 +443,14 @@ export default function DraftReviewQueue({ drafts, onRefresh }) {
           <div className="modal-container" style={{ maxWidth: '880px', padding: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {getStatusBadge(selectedDraft.status)}
                   {getSimilarityBadge(selectedDraft.similarity_score, selectedDraft.similarity_status)}
+                  {selectedDraft.site_name && (
+                    <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Globe size={11} /> {selectedDraft.site_name}
+                    </span>
+                  )}
                 </div>
                 <h2 style={{ fontSize: '1.4rem', color: '#fff' }}>{selectedDraft.title}</h2>
               </div>
