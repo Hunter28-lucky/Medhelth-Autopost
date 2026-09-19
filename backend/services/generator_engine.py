@@ -82,7 +82,7 @@ class ContentGenerator:
             model=openrouter_model or settings.OPENROUTER_MODEL
         )
         resolved_anthropic_key = anthropic_api_key if anthropic_api_key is not None else settings.ANTHROPIC_API_KEY
-        self.anthropic_api_key = resolved_anthropic_key
+        self.anthropic_api_key = resolved_anthropic_key.strip() if resolved_anthropic_key else ""
         self.anthropic_model = anthropic_model or settings.ANTHROPIC_MODEL
         self.anthropic_client = anthropic.Anthropic(api_key=self.anthropic_api_key) if self.anthropic_api_key else None
 
@@ -219,16 +219,15 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
                     res["body_html"] = clean_semantic_post_html(res["body_html"])
                     return res
             except Exception as e:
-                logger.error(f"OpenRouter generation failed: {e}. Attempting secondary provider or sandbox fallback...")
+                logger.warning(f"OpenRouter generation failed ({e}). Proceeding to secondary provider or sandbox fallback...")
 
         # 2. Try Anthropic Claude if configured
-        if self.anthropic_client:
+        if self.anthropic_client and self.anthropic_api_key:
             try:
                 response = await asyncio.to_thread(
                     self.anthropic_client.messages.create,
                     model=self.anthropic_model,
                     max_tokens=4000,
-                    temperature=0.3,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}]
                 )
@@ -248,7 +247,7 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
                 return parsed
 
             except Exception as e:
-                logger.error(f"Claude API call failed: {e}. Falling back to sandbox generator.")
+                logger.warning(f"Claude API call failed ({e}). Falling back to sandbox generator.")
 
         # 3. Deterministic high-quality sandbox generator fallback
         logger.info("Executing deterministic clinical sandbox generator.")

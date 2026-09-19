@@ -22,6 +22,7 @@ class BatchExecutionState:
         self.failed_topics: int = 0
         self.current_topic_index: int = 0
         self.current_topic_name: str = ""
+        self.current_step: str = ""
         self.current_run_id: Optional[str] = None
         self.started_at: Optional[str] = None
         self.completed_at: Optional[str] = None
@@ -44,6 +45,7 @@ class BatchExecutionState:
             "processed_topics": self.completed_topics + self.failed_topics,
             "current_topic_index": self.current_topic_index,
             "current_topic_name": self.current_topic_name,
+            "current_step": self.current_step,
             "progress_percentage": min(100, progress_pct),
             "started_at": self.started_at,
             "completed_at": self.completed_at,
@@ -182,37 +184,50 @@ class BatchExecutionManager:
                 
                 self.state.current_topic_index = idx + 1
                 self.state.current_topic_name = topic_name
+                self.state.current_step = f"Researching & synthesizing: {topic_name}"
 
                 logger.info(f"Batch [{idx + 1}/{len(topic_records)}]: Executing topic '{topic_name}' (ID #{topic_id})...")
 
                 try:
                     async with AsyncSessionLocal() as session:
-                        result = await self.pipeline.execute_run_for_topic(
-                            session=session,
-                            topic_id=topic_id,
-                            trigger_type="BATCH_ALL",
-                            force_fresh_search=force_fresh_search
+                        result = await asyncio.wait_for(
+                            self.pipeline.execute_run_for_topic(
+                                session=session,
+                                topic_id=topic_id,
+                                trigger_type="BATCH_ALL",
+                                force_fresh_search=force_fresh_search
+                            ),
+                            timeout=35.0
                         )
 
                     if result and result.get("success"):
                         self.state.completed_topics += 1
                         self.state.last_generated_post_id = result.get("post_id")
                         self.state.last_generated_post_title = result.get("post_title")
+                        self.state.current_step = f"Post #{result.get('post_id')} ready in drafts"
                         logger.info(f"Batch [{idx + 1}/{len(topic_records)}]: Topic '{topic_name}' generated successfully -> Post #{result.get('post_id')}")
                     else:
                         self.state.failed_topics += 1
+                        self.state.current_step = f"Topic completed without draft"
                         logger.warning(f"Batch [{idx + 1}/{len(topic_records)}]: Topic '{topic_name}' concluded without post: {result.get('message') or result.get('reason') or result.get('error')}")
+
+                except asyncio.TimeoutError:
+                    self.state.failed_topics += 1
+                    self.state.current_step = f"Topic timed out (skipped)"
+                    logger.warning(f"Batch [{idx + 1}/{len(topic_records)}]: Topic '{topic_name}' timed out after 35s. Advancing immediately to next category.")
 
                 except Exception as e:
                     self.state.failed_topics += 1
+                    self.state.current_step = f"Error processing category"
                     logger.exception(f"Batch [{idx + 1}/{len(topic_records)}]: Error running topic '{topic_name}': {e}")
 
-                # Gentle pacing delay between topics to let OpenRouter free tier and SQLite breathe
+                # Gentle pacing delay between topics to let connections breathe
                 if idx < len(topic_records) - 1 and not self._cancel_requested:
-                    await asyncio.sleep(1.2)
+                    await asyncio.sleep(0.4)
 
             if not self._cancel_requested:
                 self.state.status = "COMPLETED"
+                self.state.current_step = f"All {len(topic_records)} categories processed"
                 logger.info(f"Batch execution completed for site '{self.state.site_name}': {self.state.completed_topics}/{len(topic_records)} succeeded.")
 
         except Exception as e:

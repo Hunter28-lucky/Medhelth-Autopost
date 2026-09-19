@@ -748,6 +748,11 @@ export default function App() {
                     [{batchStatus.current_topic_name}]
                   </span>
                 )}
+                {batchStatus.current_step && (
+                  <span style={{ color: '#38bdf8', fontSize: '0.84rem', fontStyle: 'italic', background: 'rgba(56, 189, 248, 0.1)', padding: '2px 8px', borderRadius: '4px' }}>
+                    {batchStatus.current_step}
+                  </span>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

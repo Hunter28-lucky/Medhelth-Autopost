@@ -34,7 +34,7 @@ class ResearchEngine:
                 rp = urllib.robotparser.RobotFileParser()
                 rp.set_url(robots_url)
                 try:
-                    resp = requests.get(robots_url, timeout=5, headers={"User-Agent": self.user_agent})
+                    resp = requests.get(robots_url, timeout=3, headers={"User-Agent": self.user_agent})
                     if resp.status_code == 200:
                         rp.parse(resp.text.splitlines())
                     else:
@@ -54,7 +54,16 @@ class ResearchEngine:
         falling back to BeautifulSoup or authentic PubMed/Europe PMC structured abstracts.
         NEVER returns generic synthetic placeholder text.
         """
-        # 1. Attempt Trafilatura web extraction
+        # 0. Fast-path: If an authentic peer-reviewed structured abstract was already fetched
+        if fallback_snippet and len(fallback_snippet.split()) >= 35:
+            formatted_abstract = (
+                f"Verified Clinical Research Summary & Published Findings ({url}):\n"
+                f"{fallback_snippet.strip()}\n"
+                f"Contextual Evidence: Authentic findings documented in peer-reviewed clinical literature."
+            )
+            return {"text": formatted_abstract, "extraction_method": "clinical_abstract_verified"}
+
+        # 1. Attempt Trafilatura web extraction with strict timeout
         try:
             downloaded = trafilatura.fetch_url(url)
             if downloaded:
@@ -64,7 +73,7 @@ class ResearchEngine:
                     include_tables=True,
                     no_fallback=False
                 )
-                if extracted and len(extracted.split()) > 120:
+                if extracted and len(extracted.split()) > 100:
                     return {"text": extracted, "extraction_method": "trafilatura"}
         except Exception as e:
             logger.warning(f"Trafilatura fetch failed for {url}: {e}")
@@ -72,20 +81,20 @@ class ResearchEngine:
         # 2. Fallback to BeautifulSoup clean paragraph extraction
         try:
             headers = {"User-Agent": self.user_agent}
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(url, headers=headers, timeout=4)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
                 for s in soup(["script", "style", "nav", "footer", "header", "aside"]):
                     s.decompose()
                 paragraphs = [p.get_text().strip() for p in soup.find_all("p") if len(p.get_text().strip()) > 30]
                 body_text = "\n\n".join(paragraphs)
-                if len(body_text.split()) > 120:
+                if len(body_text.split()) > 100:
                     return {"text": body_text, "extraction_method": "beautifulsoup"}
         except Exception as e:
             logger.warning(f"BeautifulSoup fallback failed for {url}: {e}")
 
         # 3. Authentic PubMed / Europe PMC structured abstract or news snippet fallback
-        if fallback_snippet and len(fallback_snippet.strip()) >= 30:
+        if fallback_snippet and len(fallback_snippet.strip()) >= 25:
             formatted_abstract = (
                 f"Verified Clinical Research Summary & Published Findings ({url}):\n"
                 f"{fallback_snippet.strip()}\n"

@@ -38,12 +38,10 @@ POPULAR_FREE_MODELS = [
 ]
 
 FREE_MODEL_CASCADE = [
-    "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3.5-lightning:free",
-    "liquid/lfm-2.5-2.6b:free",
     "inclusionai/ling-3.0-flash-sante:free",
-    "nex-agi/nex-n2.5-pro:free",
     "nex-agi/nex-n2.5-mini:free",
+    "nex-agi/nex-n2.5-pro:free",
+    "liquid/lfm-2.5-2.6b:free",
     "openrouter/free"
 ]
 
@@ -123,12 +121,13 @@ class OpenRouterClient:
                     "temperature": temperature,
                     "max_tokens": max_tokens,
                     "response_format": {"type": "json_object"} if "llama-3.3" in model_candidate or "qwen" in model_candidate else None,
-                    "reasoning": {"max_tokens": 500} if ("ling" in model_candidate or "nex" in model_candidate) else None
+                    "reasoning": {"effort": "none"},
+                    "include_reasoning": False
                 }
                 # Remove None fields
                 payload = {k: v for k, v in payload.items() if v is not None}
 
-                response_data = self._send_request(payload, timeout=45)
+                response_data = self._send_request(payload, timeout=15)
                 choices = response_data.get("choices", [])
                 if not choices:
                     err_msg = response_data.get("error", {}).get("message", "Empty choices array returned")
@@ -167,7 +166,9 @@ class OpenRouterClient:
                 try:
                     parsed = json.loads(target_str, strict=False)
                 except Exception:
-                    parsed = json.loads(clean_text, strict=False)
+                    # Sanitize possible control characters inside strings
+                    sanitized = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', target_str)
+                    parsed = json.loads(sanitized, strict=False)
 
                 if not isinstance(parsed, dict):
                     raise ValueError(f"OpenRouter response parsed to {type(parsed).__name__}, expected JSON object")
@@ -176,12 +177,17 @@ class OpenRouterClient:
                 return parsed
 
             except Exception as e:
-                logger.warning(f"Model {model_candidate} on OpenRouter failed ({e}). Trying next free model in cascade...")
+                err_str = str(e)
+                logger.warning(f"Model {model_candidate} on OpenRouter failed ({err_str}).")
+                # Fast-fail immediately if account-wide daily free tier quota is reached
+                if "free-models-per-day" in err_str or "openrouter_free_tier_daily" in err_str:
+                    logger.error("OpenRouter daily free-tier quota exhausted across all models. Fast-failing cascade to avoid stalling.")
+                    raise RuntimeError("OpenRouter daily free model quota exhausted.")
                 last_error = e
 
         raise RuntimeError(f"All OpenRouter free models exhausted. Last error: {last_error}")
 
-    def _send_request(self, payload: Dict[str, Any], timeout: int = 45) -> Dict[str, Any]:
+    def _send_request(self, payload: Dict[str, Any], timeout: int = 15) -> Dict[str, Any]:
         data_bytes = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             self.api_url,
