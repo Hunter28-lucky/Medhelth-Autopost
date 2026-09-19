@@ -85,7 +85,7 @@ class AI_News_Publisher_Post_Creator {
         unset($post_arr['ID']);
         unset($post_arr['import_id']);
 
-        // Handle Categories
+        // Handle Categories safely without fatal errors
         $cat_ids = array();
         if (!empty($data['categories']) && is_array($data['categories'])) {
             foreach ($data['categories'] as $cat_name) {
@@ -95,12 +95,10 @@ class AI_News_Publisher_Post_Creator {
                     if ($term) {
                         $cat_ids[] = is_array($term) ? intval($term['term_id']) : intval($term);
                     } else {
-                        if (!function_exists('wp_create_category')) {
-                            require_once ABSPATH . 'wp-admin/includes/taxonomy.php';
-                        }
-                        $new_cat = wp_create_category($clean_cat);
-                        if (!is_wp_error($new_cat) && $new_cat > 0) {
-                            $cat_ids[] = intval($new_cat);
+                        // Safe core insert using wp_insert_term (core function, doesn't require wp-admin taxonomy.php)
+                        $new_term = wp_insert_term($clean_cat, 'category', array('slug' => sanitize_title($clean_cat)));
+                        if (!is_wp_error($new_term) && isset($new_term['term_id'])) {
+                            $cat_ids[] = intval($new_term['term_id']);
                         }
                     }
                 }

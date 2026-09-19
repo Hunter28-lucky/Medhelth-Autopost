@@ -178,9 +178,17 @@ class DeduplicationEngine:
 
             for idx, hist_text in enumerate(corpus):
                 t_score = float(tfidf_similarities[idx])
-                # SequenceMatcher ratio catches paraphrasing and near-identical edits
+                # SequenceMatcher ratio catches verbatim text reuse and near-identical phrasing
                 seq_ratio = difflib.SequenceMatcher(None, candidate_text, hist_text).ratio()
-                composite_score = max(t_score, seq_ratio)
+
+                # Semantic Composite:
+                # TF-IDF measures topical & clinical vocabulary overlap.
+                # If TF-IDF is low (<0.48), the articles cover different clinical subjects;
+                # common medical transition phrases should not artificially inflate the similarity score.
+                if t_score < 0.48 and seq_ratio < 0.80:
+                    composite_score = max(t_score, seq_ratio * 0.70)
+                else:
+                    composite_score = max(t_score, seq_ratio)
 
                 if composite_score > max_score:
                     max_score = composite_score

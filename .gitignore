@@ -19,7 +19,12 @@ htmlcov/
 .DS_Store
 *.log
 *.db
+*.db-shm
+*.db-wal
 backend/*.db
+backend/*.db-shm
+backend/*.db-wal
 publisher.db
 .vscode/
 .idea/
+

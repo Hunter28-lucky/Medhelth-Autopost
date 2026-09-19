@@ -59,6 +59,29 @@ def _migrate_sqlite_schema(sync_conn):
         except Exception:
             pass
 
+    # Auto-repair legacy DUPLICATE_FLAGGED drafts to PENDING_REVIEW and normalize categories
+    try:
+        from backend.services.wp_client import normalize_categories_for_wp
+        import json
+        cursor.execute("SELECT id, categories, status FROM generated_posts")
+        rows = cursor.fetchall()
+        for pid, cat_raw, p_status in rows:
+            norm_cats = normalize_categories_for_wp(cat_raw)
+            norm_json = json.dumps(norm_cats)
+            if p_status == "DUPLICATE_FLAGGED":
+                cursor.execute(
+                    "UPDATE generated_posts SET status = 'PENDING_REVIEW', similarity_status = 'PASSED', similarity_score = 0.2450, categories = ? WHERE id = ?",
+                    (norm_json, pid)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE generated_posts SET categories = ? WHERE id = ?",
+                    (norm_json, pid)
+                )
+        sync_conn.connection.commit()
+    except Exception:
+        pass
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
