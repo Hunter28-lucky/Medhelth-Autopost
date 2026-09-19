@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, 
-  Eye, AlertTriangle, Sparkles, X, Send, Trash2, Globe, DollarSign
+  Eye, AlertTriangle, Sparkles, X, Send, Trash2, Globe, DollarSign, TrendingUp
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 
@@ -408,7 +408,7 @@ export default function DraftReviewQueue({
                     }}
                     title="Click to view full 3-stage token & cost breakdown for this draft"
                   >
-                    <DollarSign size={11} style={{ color: '#818cf8' }} />
+                    <TrendingUp size={11} style={{ color: '#818cf8' }} />
                     <span>{(draft.total_tokens || 3100).toLocaleString()} tok &bull; {formatCost(draft.estimated_cost)}</span>
                   </button>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -527,7 +527,7 @@ export default function DraftReviewQueue({
                     }}
                     title="Click to view full 3-stage token & cost breakdown for this draft"
                   >
-                    <DollarSign size={12} style={{ color: '#818cf8' }} />
+                    <TrendingUp size={12} style={{ color: '#818cf8' }} />
                     <span>Run Cost: {formatCost(selectedDraft.estimated_cost)} ({(selectedDraft.total_tokens || 3100).toLocaleString()} tok)</span>
                   </button>
                 </div>

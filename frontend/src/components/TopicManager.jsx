@@ -186,8 +186,10 @@ export default function TopicManager({
       {/* Header Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {activeSite ? `${activeSite.name} - Topic Categories` : 'Topic Categories (All Websites)'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '6px' }}>
+            <h2 style={{ fontSize: '1.4rem', color: '#fff', margin: 0, fontWeight: '700' }}>
+              {activeSite ? `${activeSite.name} - Topic Categories` : 'Topic Categories (All Websites)'}
+            </h2>
             <span className="badge badge-cyan">{topics.length} Configured</span>
             <button
               type="button"
@@ -198,9 +200,9 @@ export default function TopicManager({
                 alignItems: 'center',
                 gap: '5px',
                 cursor: 'pointer',
-                background: 'rgba(16, 185, 129, 0.15)',
+                background: 'rgba(16, 185, 129, 0.12)',
                 color: '#34d399',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
                 padding: '4px 10px',
                 borderRadius: '8px',
                 fontSize: '0.78rem',
@@ -209,7 +211,7 @@ export default function TopicManager({
               }}
               title="Click to view full token economics & cost breakdown for full catalog run"
             >
-              <DollarSign size={13} style={{ color: '#34d399' }} />
+              <TrendingUp size={13} style={{ color: '#34d399' }} />
               <span>Catalog Run: <strong>{formatCost(catalogCost)}</strong> ({activeTopics.length} topics)</span>
             </button>
             {activeSite && (
@@ -217,8 +219,8 @@ export default function TopicManager({
                 <Globe size={11} /> Isolated to {activeSite.name}
               </span>
             )}
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0 }}>
             {activeSite 
               ? `Research subjects, prioritized weighting, and search keywords strictly for ${activeSite.name}. Topics from other websites are isolated.`
               : 'Research subjects across all connected websites. Select a website to manage its isolated categories.'
@@ -257,7 +259,7 @@ export default function TopicManager({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <div>
                   <h3 style={{ fontSize: '1.15rem', color: '#fff', marginBottom: '4px' }}>{topic.name}</h3>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="badge badge-indigo">Weight: {topic.weight}/10</span>
                     <span className="badge badge-cyan">{topic.lookback_days}d Window</span>
                     <button
@@ -272,9 +274,9 @@ export default function TopicManager({
                         alignItems: 'center',
                         gap: '4px',
                         cursor: 'pointer',
-                        background: 'rgba(0, 240, 255, 0.12)',
-                        color: '#00f0ff',
-                        border: '1px solid rgba(0, 240, 255, 0.35)',
+                        background: 'rgba(0, 240, 255, 0.10)',
+                        color: '#38bdf8',
+                        border: '1px solid rgba(0, 240, 255, 0.3)',
                         padding: '2px 8px',
                         borderRadius: '6px',
                         fontSize: '0.74rem',
@@ -282,10 +284,10 @@ export default function TopicManager({
                       }}
                       title="Click to inspect 3-stage token & cost breakdown for this topic"
                     >
-                      <DollarSign size={11} />
+                      <TrendingUp size={11} style={{ color: '#38bdf8' }} />
                       <span>Est. Run: {formatCost(baseCostUsd)}</span>
                     </button>
-                    {topic.site_name && (
+                    {!activeSite && topic.site_name && (
                       <span 
                         className="badge badge-purple" 
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: onSelectSite ? 'pointer' : 'default' }}

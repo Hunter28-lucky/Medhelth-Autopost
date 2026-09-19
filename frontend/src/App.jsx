@@ -362,62 +362,44 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navigation Bar */}
-      <header style={{ 
-        background: 'rgba(7, 9, 14, 0.85)', 
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid var(--border-subtle)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        padding: '0 24px'
-      }}>
-        <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '70px' }}>
+      <header className="app-header">
+        <div className="app-header-inner">
           
           {/* Brand Logo & Name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div className="app-brand-area">
             <div style={{ 
-              width: '40px', 
-              height: '40px', 
+              width: '38px', 
+              height: '38px', 
               borderRadius: '10px', 
               background: 'linear-gradient(135deg, #00f0ff 0%, #6366f1 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 16px rgba(0, 240, 255, 0.4)'
+              boxShadow: '0 0 16px rgba(0, 240, 255, 0.4)',
+              flexShrink: 0
             }}>
-              <Activity size={22} color="#041019" />
+              <Activity size={20} color="#041019" />
             </div>
             <div>
-              <h1 style={{ fontSize: '1.15rem', color: '#fff', fontWeight: '700', lineHeight: 1.2 }}>
-                PulsePublish <span style={{ color: '#00f0ff', fontSize: '0.8rem', fontWeight: '500' }}>AI News Engine</span>
+              <h1 className="app-brand-title">
+                PulsePublish <span style={{ color: '#00f0ff', fontSize: '0.78rem', fontWeight: '500' }}>AI News Engine</span>
               </h1>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Multi-Site Automation &bull; WordPress Auto-Publisher</span>
+              <span className="app-brand-subtitle">Multi-Site Automation &bull; WordPress Auto-Publisher</span>
             </div>
 
             {/* Site Switcher Dropdown */}
-            <div style={{ position: 'relative', marginLeft: '6px' }}>
+            <div style={{ position: 'relative', marginLeft: '4px' }}>
               <button
                 type="button"
                 onClick={() => setShowSiteMenu(!showSiteMenu)}
-                className="btn btn-secondary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '6px 12px',
-                  fontSize: '0.82rem',
-                  background: 'rgba(0, 240, 255, 0.08)',
-                  border: '1px solid rgba(0, 240, 255, 0.3)',
-                  color: '#fff',
-                  borderRadius: '8px'
-                }}
+                className="app-site-btn"
                 title="Switch Target Website"
               >
-                <Globe size={14} color="#00f0ff" />
-                <span style={{ fontWeight: '600', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Globe size={14} color="#00f0ff" style={{ flexShrink: 0 }} />
+                <span style={{ fontWeight: '600', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedSiteId ? currentSite.name : 'All Websites'}
                 </span>
-                <ChevronDown size={14} color="var(--text-muted)" />
+                <ChevronDown size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
               </button>
 
               {showSiteMenu && (
@@ -525,92 +507,76 @@ export default function App() {
           </div>
 
           {/* Navigation Tabs */}
-          <nav style={{ display: 'flex', gap: '4px', background: 'var(--bg-surface-elevated)', padding: '5px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+          <nav className="app-nav-container">
             <button 
-              className={`btn btn-ghost ${activeTab === 'sites' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'sites' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('sites')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <Globe size={16} /> Websites ({sites.length})
+              <Globe size={15} /> Websites ({sites.length})
             </button>
 
             <button 
-              className={`btn btn-ghost ${activeTab === 'topics' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'topics' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('topics')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <Layers size={16} /> Topics ({displayTopics.length})
+              <Layers size={15} /> Topics ({displayTopics.length})
             </button>
 
             <button 
-              className={`btn btn-ghost ${activeTab === 'rules' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'rules' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('rules')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <Sliders size={16} /> Content Rules
+              <Sliders size={15} /> Content Rules
             </button>
 
             <button 
-              className={`btn btn-ghost ${activeTab === 'drafts' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'drafts' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('drafts')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px', position: 'relative' }}
+              style={{ position: 'relative' }}
             >
-              <FileText size={16} /> Review Queue
+              <FileText size={15} /> Review Queue
               {pendingDraftsCount > 0 && (
-                <span className="badge badge-amber" style={{ padding: '1px 6px', fontSize: '0.7rem', marginLeft: '4px' }}>
+                <span className="badge badge-amber" style={{ padding: '1px 5px', fontSize: '0.68rem', marginLeft: '3px' }}>
                   {pendingDraftsCount}
                 </span>
               )}
             </button>
 
             <button 
-              className={`btn btn-ghost ${activeTab === 'runs' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'runs' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('runs')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <PlayCircle size={16} /> Run & Logs
+              <PlayCircle size={15} /> Run & Logs
             </button>
 
             <button 
-              className={`btn btn-ghost ${activeTab === 'settings' ? 'btn-secondary' : ''}`}
+              className={`btn btn-ghost app-nav-tab ${activeTab === 'settings' ? 'btn-secondary' : ''}`}
               onClick={() => setActiveTab('settings')}
-              style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             >
-              <SettingsIcon size={16} /> Settings
+              <SettingsIcon size={15} /> Settings
             </button>
           </nav>
 
           {/* Status Indicators, Developer Badge & Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="app-header-actions">
             {/* Global Real-Time Run Cost Pill */}
             <button
               type="button"
               onClick={() => handleOpenCostModal(null, null)}
-              className="badge"
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                background: 'rgba(0, 240, 255, 0.08)',
-                color: '#00f0ff',
-                border: '1px solid rgba(0, 240, 255, 0.35)',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.78rem',
-                fontWeight: '600',
-                transition: 'all 0.15s ease'
-              }}
-              title="Click to inspect real-time Token Economics and Full Pipeline Pricing"
+              className="app-cost-badge"
+              title={`Estimated cost: ${formatCostGlobal(unitCostUsd)}/post. Catalog total: ${formatCostGlobal(unitCostUsd * Math.max(1, displayTopics.filter(t => t.is_active).length))} across ${displayTopics.filter(t => t.is_active).length} topics. Click for real-time Token Economics.`}
             >
-              <TrendingUp size={13} style={{ color: '#00f0ff' }} />
+              <TrendingUp size={13} style={{ color: '#00f0ff', flexShrink: 0 }} />
               <span>
-                Est. Run: <strong>{formatCostGlobal(unitCostUsd)}</strong> / post &bull; {formatCostGlobal(unitCostUsd * Math.max(1, displayTopics.filter(t => t.is_active).length))} catalog
+                Est. Run: <strong>{formatCostGlobal(unitCostUsd)}</strong> / post
+              </span>
+              <span className="app-cost-catalog-text" style={{ color: 'var(--text-muted)' }}>
+                &bull; {formatCostGlobal(unitCostUsd * Math.max(1, displayTopics.filter(t => t.is_active).length))} catalog
               </span>
             </button>
 
             <span 
-              className="badge" 
+              className="app-wp-status" 
               style={{ 
                 background: settings?.wordpress_api_key_configured ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
                 color: settings?.wordpress_api_key_configured ? '#34d399' : '#fbbf24',
@@ -618,25 +584,15 @@ export default function App() {
               }}
               title={settings?.wordpress_api_key_configured ? 'WordPress credentials configured' : 'WordPress API key not set yet'}
             >
-              <Globe size={12} /> {settings?.wordpress_api_key_configured ? 'WP Connected' : 'WP Setup Needed'}
+              <Globe size={12} style={{ flexShrink: 0 }} /> {settings?.wordpress_api_key_configured ? 'WP Connected' : 'WP Setup Needed'}
             </span>
 
             {/* Developer Status Badge */}
             <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'rgba(99, 102, 241, 0.15)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                padding: '4px 10px',
-                borderRadius: '8px',
-                fontSize: '0.78rem',
-                color: '#c7d2fe'
-              }}
+              className="app-dev-badge"
               title="Authenticated Developer Session"
             >
-              <Shield size={13} style={{ color: '#818cf8' }} />
+              <Shield size={13} style={{ color: '#818cf8', flexShrink: 0 }} />
               <span>{developerName}</span>
               <button
                 onClick={handleLogout}
@@ -657,18 +613,17 @@ export default function App() {
             </div>
 
             <button 
-              className="btn btn-primary"
-              style={{ padding: '7px 14px', fontSize: '0.8rem' }}
+              className="btn btn-primary app-run-btn"
               onClick={() => handleTriggerRun(null)}
             >
-              <Sparkles size={15} /> Run Pipeline
+              <Sparkles size={14} style={{ flexShrink: 0 }} /> Run Pipeline
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Content View */}
-      <main style={{ flex: 1, maxWidth: '1440px', width: '100%', margin: '0 auto', padding: '32px 24px' }}>
+      <main style={{ flex: 1, maxWidth: '1560px', width: '100%', margin: '0 auto', padding: '28px 20px' }}>
         {/* Active Context Banner: Global Dashboard vs Dedicated Website Control Center */}
         <div className="glass-card" style={{
           padding: '16px 22px',
