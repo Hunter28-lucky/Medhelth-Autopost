@@ -32,8 +32,18 @@ def _migrate_sqlite_schema(sync_conn):
         ("content_rules", "site_id", "INTEGER DEFAULT 1"),
         ("research_articles", "site_id", "INTEGER DEFAULT 1"),
         ("generated_posts", "site_id", "INTEGER DEFAULT 1"),
+        ("generated_posts", "prompt_tokens", "INTEGER DEFAULT 0"),
+        ("generated_posts", "completion_tokens", "INTEGER DEFAULT 0"),
+        ("generated_posts", "total_tokens", "INTEGER DEFAULT 0"),
+        ("generated_posts", "estimated_cost", "FLOAT DEFAULT 0.0"),
+        ("generated_posts", "cost_breakdown", "JSON DEFAULT '{}'"),
         ("run_logs", "site_id", "INTEGER DEFAULT 1"),
         ("run_logs", "site_name", "VARCHAR(255) DEFAULT 'MedHealth Times'"),
+        ("run_logs", "prompt_tokens", "INTEGER DEFAULT 0"),
+        ("run_logs", "completion_tokens", "INTEGER DEFAULT 0"),
+        ("run_logs", "total_tokens", "INTEGER DEFAULT 0"),
+        ("run_logs", "estimated_cost", "FLOAT DEFAULT 0.0"),
+        ("run_logs", "cost_breakdown", "JSON DEFAULT '{}'"),
     ]
     for table_name, col_name, col_def in columns_to_ensure:
         try:

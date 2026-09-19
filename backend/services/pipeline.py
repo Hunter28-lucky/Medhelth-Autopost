@@ -11,6 +11,7 @@ from backend.services.dedup_engine import DeduplicationEngine
 from backend.services.generator_engine import ContentGenerator, clean_semantic_post_html
 from backend.services.yoast_optimizer import yoast_optimizer
 from backend.services.wp_client import WordPressClient
+from backend.services.cost_engine import estimate_tokens_from_text, compute_post_cost
 from backend.config import settings
 
 logger = logging.getLogger("publisher.pipeline")
@@ -253,6 +254,20 @@ class PublishingPipeline:
             clean_body = clean_semantic_post_html(draft_data.get("body_html", ""))
             draft_data["body_html"] = clean_body
 
+            # 8.5 Compute Token Economics & Granular Stage Investment
+            search_query_count = len(topic.keywords) if (topic.keywords and len(topic.keywords) > 0) else 1
+            token_stats = estimate_tokens_from_text(
+                body_text=clean_body,
+                research_count=len(research_articles),
+                rules_applied=bool(rules)
+            )
+            cost_data = compute_post_cost(
+                prompt_tokens=token_stats["prompt_tokens"],
+                completion_tokens=token_stats["completion_tokens"],
+                search_queries=search_query_count
+            )
+            log_step("TOKEN_ECONOMICS", f"Token Economics: {cost_data['total_tokens']:,} tokens across 3 stages • Cost: {cost_data['formatted_total_cost']} ({cost_data['currency']}).")
+
             generated_post = GeneratedPost(
                 site_id=site_id,
                 topic_id=topic.id,
@@ -279,6 +294,13 @@ class PublishingPipeline:
                 yoast_readability_score=draft_data.get("yoast_readability_score", 90),
                 yoast_checklist=draft_data.get("yoast_checklist", []),
                 
+                # Token Economics & Cost Analytics
+                prompt_tokens=cost_data["prompt_tokens"],
+                completion_tokens=cost_data["completion_tokens"],
+                total_tokens=cost_data["total_tokens"],
+                estimated_cost=cost_data["total_cost_usd"],
+                cost_breakdown=cost_data,
+
                 status=post_status,
                 created_at=datetime.datetime.utcnow()
             )
@@ -292,20 +314,18 @@ class PublishingPipeline:
             should_auto_push = (site_auto_push or rules.auto_push_to_wp) and post_status == "PENDING_REVIEW"
 
             if should_auto_push:
-                log_step("WP_PUSH", f"Auto-push policy active for site '{site_name}'. Submitting Yoast-compliant draft to WordPress via REST API...")
+                log_step("WP_PUSH_TRIGGERED", f"Automatic push policy active. Submitting draft to WordPress for site '{site_name}'...")
                 wp_payload = {
                     "title": generated_post.title,
-                    "body_html": generated_post.body_html,
                     "slug": generated_post.slug,
+                    "content": generated_post.body_html,
+                    "body_html": generated_post.body_html,
                     "excerpt": generated_post.excerpt,
-                    "categories": generated_post.categories,
-                    "tags": generated_post.tags,
                     "meta_title": generated_post.meta_title,
                     "meta_description": generated_post.meta_description,
-                    "sources_used": generated_post.sources_used,
-                    "key_takeaways": generated_post.key_takeaways,
-                    "disclaimer": generated_post.disclaimer,
                     "focus_keyphrase": generated_post.focus_keyphrase,
+                    "categories": generated_post.categories,
+                    "tags": generated_post.tags,
                     "yoast_seo_score": generated_post.yoast_seo_score,
                     "yoast_readability_score": generated_post.yoast_readability_score,
                     "run_id": run_id
@@ -326,6 +346,11 @@ class PublishingPipeline:
             # 10. Wrap up run log
             run_log.status = "COMPLETED"
             run_log.generated_post_id = generated_post.id
+            run_log.prompt_tokens = cost_data["prompt_tokens"]
+            run_log.completion_tokens = cost_data["completion_tokens"]
+            run_log.total_tokens = cost_data["total_tokens"]
+            run_log.estimated_cost = cost_data["total_cost_usd"]
+            run_log.cost_breakdown = cost_data
             run_log.completed_at = datetime.datetime.utcnow()
             run_log.step_logs = step_logs
             await session.commit()
@@ -337,6 +362,9 @@ class PublishingPipeline:
                 "post_title": generated_post.title,
                 "status": generated_post.status,
                 "similarity_score": sim_score,
+                "total_tokens": cost_data["total_tokens"],
+                "estimated_cost": cost_data["total_cost_usd"],
+                "formatted_cost": cost_data["formatted_total_cost"],
                 "wp_post_id": generated_post.wp_post_id,
                 "wp_edit_url": generated_post.wp_edit_url
             }

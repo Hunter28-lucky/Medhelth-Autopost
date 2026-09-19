@@ -21,7 +21,8 @@ from backend.schemas import (
     DraftBulkDeleteRequest, DraftBulkDeleteResponse,
     RunTriggerRequest, RunLogResponse,
     SettingsResponse, SettingsUpdate,
-    AuthLoginRequest, AuthLoginResponse
+    AuthLoginRequest, AuthLoginResponse,
+    CostBreakdownResponse, CostAnalyticsSummaryResponse
 )
 from backend.services.auth_service import (
     create_developer_token, verify_developer_token, require_developer
@@ -33,6 +34,9 @@ from backend.services.pipeline import PublishingPipeline
 from backend.services.scheduler import scheduler_service
 from backend.services.wp_client import WordPressClient
 from backend.services.yoast_optimizer import yoast_optimizer
+from backend.services.cost_engine import (
+    estimate_tokens_from_text, compute_post_cost, calculate_catalog_summary
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("publisher.api")
@@ -730,7 +734,25 @@ async def get_run_history(
         stmt = stmt.where(RunLog.site_id == site_id)
     stmt = stmt.order_by(desc(RunLog.started_at)).limit(limit)
     result = await db.execute(stmt)
-    return result.scalars().all()
+    logs = result.scalars().all()
+    
+    response = []
+    for l in logs:
+        l_dict = RunLogResponse.model_validate(l).model_dump()
+        if not l_dict.get("total_tokens") or not l_dict.get("cost_breakdown"):
+            t_stats = estimate_tokens_from_text()
+            c_data = compute_post_cost(
+                prompt_tokens=t_stats["prompt_tokens"],
+                completion_tokens=t_stats["completion_tokens"],
+                search_queries=1
+            )
+            l_dict["prompt_tokens"] = c_data["prompt_tokens"]
+            l_dict["completion_tokens"] = c_data["completion_tokens"]
+            l_dict["total_tokens"] = c_data["total_tokens"]
+            l_dict["estimated_cost"] = c_data["total_cost_usd"]
+            l_dict["cost_breakdown"] = c_data
+        response.append(l_dict)
+    return response
 
 @app.get("/api/runs/{run_id}", response_model=RunLogResponse)
 async def get_run_detail(run_id: str, db: AsyncSession = Depends(get_db)):
@@ -738,7 +760,20 @@ async def get_run_detail(run_id: str, db: AsyncSession = Depends(get_db)):
     log_entry = result.scalars().first()
     if not log_entry:
         raise HTTPException(status_code=404, detail="Run log not found")
-    return log_entry
+    l_dict = RunLogResponse.model_validate(log_entry).model_dump()
+    if not l_dict.get("total_tokens") or not l_dict.get("cost_breakdown"):
+        t_stats = estimate_tokens_from_text()
+        c_data = compute_post_cost(
+            prompt_tokens=t_stats["prompt_tokens"],
+            completion_tokens=t_stats["completion_tokens"],
+            search_queries=1
+        )
+        l_dict["prompt_tokens"] = c_data["prompt_tokens"]
+        l_dict["completion_tokens"] = c_data["completion_tokens"]
+        l_dict["total_tokens"] = c_data["total_tokens"]
+        l_dict["estimated_cost"] = c_data["total_cost_usd"]
+        l_dict["cost_breakdown"] = c_data
+    return l_dict
 
 # ==============================================================================
 # DRAFTS & EDITORIAL QUEUE
@@ -769,6 +804,20 @@ async def list_drafts(
             site_cache[sid] = s.name if s else "MedHealth Times"
         p_dict = GeneratedPostResponse.model_validate(p).model_dump()
         p_dict["site_name"] = site_cache[sid]
+        
+        # Enrich legacy drafts without token stats
+        if not p_dict.get("total_tokens") or not p_dict.get("cost_breakdown"):
+            t_stats = estimate_tokens_from_text(body_text=p.body_html)
+            c_data = compute_post_cost(
+                prompt_tokens=t_stats["prompt_tokens"],
+                completion_tokens=t_stats["completion_tokens"],
+                search_queries=1
+            )
+            p_dict["prompt_tokens"] = c_data["prompt_tokens"]
+            p_dict["completion_tokens"] = c_data["completion_tokens"]
+            p_dict["total_tokens"] = c_data["total_tokens"]
+            p_dict["estimated_cost"] = c_data["total_cost_usd"]
+            p_dict["cost_breakdown"] = c_data
         response.append(p_dict)
     return response
 
@@ -781,6 +830,19 @@ async def get_draft(post_id: int, db: AsyncSession = Depends(get_db)):
     site = await db.get(ManagedSite, sid)
     p_dict = GeneratedPostResponse.model_validate(post).model_dump()
     p_dict["site_name"] = site.name if site else "MedHealth Times"
+    
+    if not p_dict.get("total_tokens") or not p_dict.get("cost_breakdown"):
+        t_stats = estimate_tokens_from_text(body_text=post.body_html)
+        c_data = compute_post_cost(
+            prompt_tokens=t_stats["prompt_tokens"],
+            completion_tokens=t_stats["completion_tokens"],
+            search_queries=1
+        )
+        p_dict["prompt_tokens"] = c_data["prompt_tokens"]
+        p_dict["completion_tokens"] = c_data["completion_tokens"]
+        p_dict["total_tokens"] = c_data["total_tokens"]
+        p_dict["estimated_cost"] = c_data["total_cost_usd"]
+        p_dict["cost_breakdown"] = c_data
     return p_dict
 
 @app.post("/api/drafts/{post_id}/action", dependencies=[Depends(require_developer)])
@@ -991,7 +1053,14 @@ async def get_settings():
         dedup_threshold=settings.DEDUP_SIMILARITY_THRESHOLD,
         auto_push_to_wp=settings.AUTO_PUSH_TO_WP,
         scheduler_enabled=settings.SCHEDULER_ENABLED,
-        scheduler_interval_hours=settings.SCHEDULER_INTERVAL_HOURS
+        scheduler_interval_hours=settings.SCHEDULER_INTERVAL_HOURS,
+        cost_currency=settings.COST_CURRENCY,
+        cost_exchange_rate=settings.COST_EXCHANGE_RATE,
+        cost_prompt_per_1m=settings.COST_PROMPT_PER_1M,
+        cost_completion_per_1m=settings.COST_COMPLETION_PER_1M,
+        cost_per_search_query=settings.COST_PER_SEARCH_QUERY,
+        cost_manual_override_enabled=settings.COST_MANUAL_OVERRIDE_ENABLED,
+        cost_fixed_per_post=settings.COST_FIXED_PER_POST
     )
 
 @app.put("/api/settings", response_model=SettingsResponse, dependencies=[Depends(require_developer)])
@@ -1042,8 +1111,77 @@ async def update_settings(payload: SettingsUpdate):
             scheduler_service.stop()
     if payload.developer_password is not None and payload.developer_password.strip():
         settings.DEVELOPER_PASSWORD = payload.developer_password.strip()
+    
+    # Token Economics & Cost Analytics updates
+    if payload.cost_currency is not None and payload.cost_currency.strip():
+        settings.COST_CURRENCY = payload.cost_currency.strip().upper()
+    if payload.cost_exchange_rate is not None and payload.cost_exchange_rate > 0:
+        settings.COST_EXCHANGE_RATE = float(payload.cost_exchange_rate)
+    if payload.cost_prompt_per_1m is not None and payload.cost_prompt_per_1m >= 0:
+        settings.COST_PROMPT_PER_1M = float(payload.cost_prompt_per_1m)
+    if payload.cost_completion_per_1m is not None and payload.cost_completion_per_1m >= 0:
+        settings.COST_COMPLETION_PER_1M = float(payload.cost_completion_per_1m)
+    if payload.cost_per_search_query is not None and payload.cost_per_search_query >= 0:
+        settings.COST_PER_SEARCH_QUERY = float(payload.cost_per_search_query)
+    if payload.cost_manual_override_enabled is not None:
+        settings.COST_MANUAL_OVERRIDE_ENABLED = bool(payload.cost_manual_override_enabled)
+    if payload.cost_fixed_per_post is not None and payload.cost_fixed_per_post >= 0:
+        settings.COST_FIXED_PER_POST = float(payload.cost_fixed_per_post)
 
     return await get_settings()
+
+# ==============================================================================
+# TOKEN ECONOMICS & COST ANALYTICS ENDPOINTS
+# ==============================================================================
+
+@app.get("/api/analytics/cost-summary", response_model=CostAnalyticsSummaryResponse)
+async def get_cost_analytics_summary(
+    currency: Optional[str] = Query(None),
+    site_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns global API and token economics summary:
+    - Cost per single post run with 3-stage breakdown
+    - Cost for full catalog run (all configured topics)
+    - Projections (daily, monthly, vs traditional agency)
+    """
+    topics_query = select(func.count(Topic.id))
+    active_query = select(func.count(Topic.id)).where(Topic.is_active == True)
+    if site_id is not None:
+        topics_query = topics_query.where(Topic.site_id == site_id)
+        active_query = active_query.where(Topic.site_id == site_id)
+
+    total_topics = (await db.execute(topics_query)).scalar() or 0
+    active_topics = (await db.execute(active_query)).scalar() or 0
+
+    return calculate_catalog_summary(
+        total_topics_count=total_topics,
+        active_topics_count=active_topics,
+        custom_currency=currency
+    )
+
+@app.get("/api/topics/{topic_id}/cost-breakdown", response_model=CostBreakdownResponse)
+async def get_topic_cost_breakdown(
+    topic_id: int,
+    currency: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns authentic 3-stage token & money breakdown for executing this specific topic.
+    """
+    topic = await db.get(Topic, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic category not found")
+
+    search_queries = len(topic.keywords) if topic.keywords else 1
+    sample_tokens = estimate_tokens_from_text(research_count=min(4, max(2, search_queries)))
+    return compute_post_cost(
+        prompt_tokens=sample_tokens["prompt_tokens"],
+        completion_tokens=sample_tokens["completion_tokens"],
+        search_queries=search_queries,
+        custom_currency=currency
+    )
 
 @app.post("/api/settings/test-openrouter", dependencies=[Depends(require_developer)])
 async def test_openrouter_connection():

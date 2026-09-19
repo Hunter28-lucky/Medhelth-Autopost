@@ -61,4 +61,13 @@ class Settings:
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "True").lower() in ("true", "1", "yes")
     SCHEDULER_INTERVAL_HOURS: int = int(os.getenv("SCHEDULER_INTERVAL_HOURS", "6"))
 
+    # Token Economics & Cost Analytics
+    COST_CURRENCY: str = os.getenv("COST_CURRENCY", "USD")  # USD, INR, EUR, GBP
+    COST_EXCHANGE_RATE: float = float(os.getenv("COST_EXCHANGE_RATE", "87.5"))  # USD to INR
+    COST_PROMPT_PER_1M: float = float(os.getenv("COST_PROMPT_PER_1M", "0.15"))  # $0.15 per 1M prompt tokens
+    COST_COMPLETION_PER_1M: float = float(os.getenv("COST_COMPLETION_PER_1M", "0.60"))  # $0.60 per 1M completion tokens
+    COST_PER_SEARCH_QUERY: float = float(os.getenv("COST_PER_SEARCH_QUERY", "0.0015"))  # $0.0015 per web search query
+    COST_MANUAL_OVERRIDE_ENABLED: bool = os.getenv("COST_MANUAL_OVERRIDE_ENABLED", "False").lower() in ("true", "1", "yes")
+    COST_FIXED_PER_POST: float = float(os.getenv("COST_FIXED_PER_POST", "0.0035"))  # Fixed benchmark cost in USD
+
 settings = Settings()

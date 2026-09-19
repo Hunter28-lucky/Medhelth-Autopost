@@ -1,15 +1,48 @@
 import React, { useState } from 'react';
 import { 
   Plus, Upload, Play, Edit3, Trash2, Globe, ShieldAlert, CheckCircle2, 
-  Search, X, AlertCircle 
+  Search, X, AlertCircle, DollarSign, TrendingUp
 } from 'lucide-react';
 
-export default function TopicManager({ topics, selectedSiteId, sites = [], onSelectSite, onRefresh, onTriggerRun }) {
+export default function TopicManager({ 
+  topics, 
+  selectedSiteId, 
+  sites = [], 
+  settings = null,
+  onOpenCostModal = null,
+  onSelectSite, 
+  onRefresh, 
+  onTriggerRun 
+}) {
   const activeSite = sites.find(s => s.id === selectedSiteId);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
+
+  // Cost formatting
+  const currency = settings?.cost_currency || 'USD';
+  const symbols = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
+  const symbol = symbols[currency] || '$';
+  const exchangeRate = settings?.cost_exchange_rate || 87.5;
+  const isOverride = settings?.cost_manual_override_enabled;
+  const baseCostUsd = isOverride ? (settings?.cost_fixed_per_post || 0.0035) : 0.0035;
+
+  const formatCost = (usdVal) => {
+    let rate = 1.0;
+    if (currency === 'INR') rate = exchangeRate;
+    else if (currency === 'EUR') rate = 0.92;
+    else if (currency === 'GBP') rate = 0.79;
+
+    const val = usdVal * rate;
+    if (currency === 'INR') {
+      return val < 0.01 ? `${symbol}${val.toFixed(3)}` : `${symbol}${val.toFixed(2)}`;
+    }
+    return `${symbol}${val.toFixed(4)}`;
+  };
+
+  const activeTopics = topics.filter(t => t.is_active);
+  const catalogCost = baseCostUsd * Math.max(1, activeTopics.length);
 
   // Add / Edit form state
   const [formData, setFormData] = useState({
@@ -156,6 +189,29 @@ export default function TopicManager({ topics, selectedSiteId, sites = [], onSel
           <h2 style={{ fontSize: '1.5rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {activeSite ? `${activeSite.name} - Topic Categories` : 'Topic Categories (All Websites)'}
             <span className="badge badge-cyan">{topics.length} Configured</span>
+            <button
+              type="button"
+              onClick={() => onOpenCostModal && onOpenCostModal(null)}
+              className="badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#34d399',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                transition: 'all 0.15s ease'
+              }}
+              title="Click to view full token economics & cost breakdown for full catalog run"
+            >
+              <DollarSign size={13} style={{ color: '#34d399' }} />
+              <span>Catalog Run: <strong>{formatCost(catalogCost)}</strong> ({activeTopics.length} topics)</span>
+            </button>
             {activeSite && (
               <span className="badge badge-purple" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
                 <Globe size={11} /> Isolated to {activeSite.name}
@@ -204,6 +260,31 @@ export default function TopicManager({ topics, selectedSiteId, sites = [], onSel
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="badge badge-indigo">Weight: {topic.weight}/10</span>
                     <span className="badge badge-cyan">{topic.lookback_days}d Window</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenCostModal && onOpenCostModal(topic);
+                      }}
+                      className="badge"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        cursor: 'pointer',
+                        background: 'rgba(0, 240, 255, 0.12)',
+                        color: '#00f0ff',
+                        border: '1px solid rgba(0, 240, 255, 0.35)',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: '600'
+                      }}
+                      title="Click to inspect 3-stage token & cost breakdown for this topic"
+                    >
+                      <DollarSign size={11} />
+                      <span>Est. Run: {formatCost(baseCostUsd)}</span>
+                    </button>
                     {topic.site_name && (
                       <span 
                         className="badge badge-purple" 

@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
 import { 
   FileText, CheckCircle, ExternalLink, RefreshCw, XCircle, 
-  Eye, AlertTriangle, Sparkles, X, Send, Trash2, Globe
+  Eye, AlertTriangle, Sparkles, X, Send, Trash2, Globe, DollarSign
 } from 'lucide-react';
 import YoastSeoInspector from './YoastSeoInspector';
 
-export default function DraftReviewQueue({ drafts, onSelectSite, onRefresh }) {
+export default function DraftReviewQueue({ 
+  drafts, 
+  settings = null,
+  onOpenCostModal = null,
+  onSelectSite, 
+  onRefresh 
+}) {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedDraft, setSelectedDraft] = useState(null);
   const [regeneratePrompt, setRegeneratePrompt] = useState('');
@@ -14,6 +20,27 @@ export default function DraftReviewQueue({ drafts, onSelectSite, onRefresh }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmDeleteModal, setConfirmDeleteModal] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+
+  // Currency helpers
+  const currency = settings?.cost_currency || 'USD';
+  const symbols = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
+  const symbol = symbols[currency] || '$';
+  const exchangeRate = settings?.cost_exchange_rate || 87.5;
+  const isOverride = settings?.cost_manual_override_enabled;
+
+  const formatCost = (usdVal) => {
+    const effectiveUsd = isOverride ? (settings?.cost_fixed_per_post || 0.0035) : (usdVal || 0.0035);
+    let rate = 1.0;
+    if (currency === 'INR') rate = exchangeRate;
+    else if (currency === 'EUR') rate = 0.92;
+    else if (currency === 'GBP') rate = 0.79;
+
+    const val = effectiveUsd * rate;
+    if (currency === 'INR') {
+      return val < 0.01 ? `${symbol}${val.toFixed(3)}` : `${symbol}${val.toFixed(2)}`;
+    }
+    return `${symbol}${val.toFixed(4)}`;
+  };
 
   const filteredDrafts = drafts.filter(d => {
     if (statusFilter === 'ALL') return true;
@@ -359,6 +386,31 @@ export default function DraftReviewQueue({ drafts, onSelectSite, onRefresh }) {
                     <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
                     Yoast: {draft.yoast_seo_score >= 80 ? 'Good' : 'OK'}
                   </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenCostModal && onOpenCostModal(null, draft);
+                    }}
+                    className="badge"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      color: '#a5b4fc',
+                      border: '1px solid rgba(99, 102, 241, 0.35)',
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '0.74rem',
+                      fontWeight: '600'
+                    }}
+                    title="Click to view full 3-stage token & cost breakdown for this draft"
+                  >
+                    <DollarSign size={11} style={{ color: '#818cf8' }} />
+                    <span>{(draft.total_tokens || 3100).toLocaleString()} tok &bull; {formatCost(draft.estimated_cost)}</span>
+                  </button>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {new Date(draft.created_at).toLocaleString()}
                   </span>
@@ -456,6 +508,28 @@ export default function DraftReviewQueue({ drafts, onSelectSite, onRefresh }) {
                       <Globe size={11} /> {selectedDraft.site_name}
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => onOpenCostModal && onOpenCostModal(null, selectedDraft)}
+                    className="badge"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'rgba(99, 102, 241, 0.15)',
+                      color: '#c7d2fe',
+                      border: '1px solid rgba(99, 102, 241, 0.4)',
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '0.76rem',
+                      fontWeight: '600'
+                    }}
+                    title="Click to view full 3-stage token & cost breakdown for this draft"
+                  >
+                    <DollarSign size={12} style={{ color: '#818cf8' }} />
+                    <span>Run Cost: {formatCost(selectedDraft.estimated_cost)} ({(selectedDraft.total_tokens || 3100).toLocaleString()} tok)</span>
+                  </button>
                 </div>
                 <h2 style={{ fontSize: '1.4rem', color: '#fff' }}>{selectedDraft.title}</h2>
               </div>

@@ -193,6 +193,13 @@ class GeneratedPostResponse(BaseModel):
     yoast_readability_score: int = 90
     yoast_checklist: List[Dict[str, Any]] = Field(default_factory=list)
     
+    # Token Economics & Cost Analytics
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost: float = 0.0
+    cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
     status: str
     wp_post_id: Optional[int]
     wp_edit_url: Optional[str]
@@ -233,6 +240,14 @@ class RunLogResponse(BaseModel):
     step_logs: List[Dict[str, Any]]
     error_message: Optional[str]
     generated_post_id: Optional[int]
+    
+    # Token Economics & Cost Analytics
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost: float = 0.0
+    cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
+
     started_at: datetime
     completed_at: Optional[datetime]
 
@@ -267,6 +282,15 @@ class SettingsResponse(BaseModel):
     scheduler_enabled: bool
     scheduler_interval_hours: int
     developer_name: str = "Krish Goswami"
+    
+    # Token Economics & Cost Analytics
+    cost_currency: str = "USD"
+    cost_exchange_rate: float = 87.5
+    cost_prompt_per_1m: float = 0.15
+    cost_completion_per_1m: float = 0.60
+    cost_per_search_query: float = 0.0015
+    cost_manual_override_enabled: bool = False
+    cost_fixed_per_post: float = 0.0035
 
 class SettingsUpdate(BaseModel):
     ai_provider: Optional[str] = None
@@ -285,3 +309,49 @@ class SettingsUpdate(BaseModel):
     scheduler_enabled: Optional[bool] = None
     scheduler_interval_hours: Optional[int] = None
     developer_password: Optional[str] = None
+    
+    # Token Economics & Cost Analytics
+    cost_currency: Optional[str] = None
+    cost_exchange_rate: Optional[float] = None
+    cost_prompt_per_1m: Optional[float] = None
+    cost_completion_per_1m: Optional[float] = None
+    cost_per_search_query: Optional[float] = None
+    cost_manual_override_enabled: Optional[bool] = None
+    cost_fixed_per_post: Optional[float] = None
+
+# --- Cost & Token Analytics Schemas ---
+class CostStageDetail(BaseModel):
+    id: str
+    name: str
+    percentage: int
+    tokens: int
+    cost_usd: float
+    cost_converted: float
+    formatted_cost: str
+    description: str
+    metrics: List[str]
+
+class CostBreakdownResponse(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    total_cost_usd: float
+    total_cost_converted: float
+    formatted_total_cost: str
+    currency: str
+    currency_symbol: str
+    exchange_rate: float
+    is_manual_override: bool
+    stages: List[CostStageDetail]
+    rates: Dict[str, Any]
+
+class CostAnalyticsSummaryResponse(BaseModel):
+    currency: str
+    currency_symbol: str
+    total_topics_count: int
+    active_topics_count: int
+    scheduler_interval_hours: int
+    single_post: Dict[str, Any]
+    full_catalog_run: Dict[str, Any]
+    projections: Dict[str, Any]
+    sample_post_breakdown: CostBreakdownResponse

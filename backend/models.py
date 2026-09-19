@@ -161,6 +161,13 @@ class GeneratedPost(Base):
     yoast_readability_score = Column(Integer, default=90)    # 0-100 (>=80 is Green / Good)
     yoast_checklist = Column(JSON, default=list)             # Detailed audit checklist
     
+    # Token Economics & Cost Analytics
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    estimated_cost = Column(Float, default=0.0)
+    cost_breakdown = Column(JSON, default=dict)
+
     # Editorial status
     # PENDING_REVIEW -> User can Approve, Reject, or Regenerate
     # APPROVED -> Post ready to send to WP
@@ -194,6 +201,14 @@ class RunLog(Base):
     step_logs = Column(JSON, default=list)               # [{timestamp, step, message, level}]
     error_message = Column(Text, nullable=True)
     generated_post_id = Column(Integer, nullable=True)
+    
+    # Token Economics & Cost Analytics
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
+    total_tokens = Column(Integer, default=0)
+    estimated_cost = Column(Float, default=0.0)
+    cost_breakdown = Column(JSON, default=dict)
+
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
 

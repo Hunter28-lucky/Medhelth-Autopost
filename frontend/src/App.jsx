@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Activity, Layers, Sliders, FileText, PlayCircle, Settings as SettingsIcon, 
   Globe, AlertCircle, ExternalLink, Sparkles,
-  Shield, Lock, LogOut, Eye, EyeOff, ChevronDown, Plus
+  Shield, Lock, LogOut, Eye, EyeOff, ChevronDown, Plus,
+  DollarSign, TrendingUp
 } from 'lucide-react';
 
 import { getDeveloperToken, setDeveloperToken, removeDeveloperToken } from './apiClient';
@@ -12,6 +13,7 @@ import ContentRulesEditor from './components/ContentRulesEditor';
 import DraftReviewQueue from './components/DraftReviewQueue';
 import RunControlsAndLogs from './components/RunControlsAndLogs';
 import SystemSettings from './components/SystemSettings';
+import CostBreakdownModal from './components/CostBreakdownModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('topics');
@@ -206,6 +208,37 @@ export default function App() {
 
   const pendingDraftsCount = displayDrafts.filter(d => d.status === 'PENDING_REVIEW').length;
   const currentSite = sites.find(s => s.id === selectedSiteId) || sites[0] || { name: 'MedHealth Times', id: 1, wp_url: 'http://sh012.global.temp.domains/~ttprdsmy/medhealthtimes' };
+
+  // Token Economics global calculations & modal state
+  const costCurrency = settings?.cost_currency || 'USD';
+  const costSymbols = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
+  const costSymbol = costSymbols[costCurrency] || '$';
+  const exchangeRate = settings?.cost_exchange_rate || 87.5;
+  const isCostOverride = settings?.cost_manual_override_enabled;
+  const unitCostUsd = isCostOverride ? (settings?.cost_fixed_per_post || 0.0035) : 0.0035;
+
+  const formatCostGlobal = (usdAmount) => {
+    let rate = 1.0;
+    if (costCurrency === 'INR') rate = exchangeRate;
+    else if (costCurrency === 'EUR') rate = 0.92;
+    else if (costCurrency === 'GBP') rate = 0.79;
+
+    const val = usdAmount * rate;
+    if (costCurrency === 'INR') {
+      return val < 0.01 ? `${costSymbol}${val.toFixed(3)}` : `${costSymbol}${val.toFixed(2)}`;
+    }
+    return `${costSymbol}${val.toFixed(4)}`;
+  };
+
+  const [costModalOpen, setCostModalOpen] = useState(false);
+  const [costModalTopic, setCostModalTopic] = useState(null);
+  const [costModalDraft, setCostModalDraft] = useState(null);
+
+  const handleOpenCostModal = (topic = null, draft = null) => {
+    setCostModalTopic(topic);
+    setCostModalDraft(draft);
+    setCostModalOpen(true);
+  };
 
   // --- DEVELOPER ACCESS LOCK SCREEN ---
   if (!isAuthenticated && !isCheckingAuth) {
@@ -549,6 +582,33 @@ export default function App() {
 
           {/* Status Indicators, Developer Badge & Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Global Real-Time Run Cost Pill */}
+            <button
+              type="button"
+              onClick={() => handleOpenCostModal(null, null)}
+              className="badge"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                background: 'rgba(0, 240, 255, 0.08)',
+                color: '#00f0ff',
+                border: '1px solid rgba(0, 240, 255, 0.35)',
+                padding: '4px 10px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: '600',
+                transition: 'all 0.15s ease'
+              }}
+              title="Click to inspect real-time Token Economics and Full Pipeline Pricing"
+            >
+              <TrendingUp size={13} style={{ color: '#00f0ff' }} />
+              <span>
+                Est. Run: <strong>{formatCostGlobal(unitCostUsd)}</strong> / post &bull; {formatCostGlobal(unitCostUsd * Math.max(1, displayTopics.filter(t => t.is_active).length))} catalog
+              </span>
+            </button>
+
             <span 
               className="badge" 
               style={{ 
@@ -729,6 +789,8 @@ export default function App() {
             topics={displayTopics}
             selectedSiteId={selectedSiteId}
             sites={sites}
+            settings={settings}
+            onOpenCostModal={handleOpenCostModal}
             onSelectSite={(id, tab = 'topics') => {
               setSelectedSiteId(id);
               setActiveTab(tab);
@@ -749,6 +811,8 @@ export default function App() {
         {activeTab === 'drafts' && (
           <DraftReviewQueue 
             drafts={displayDrafts} 
+            settings={settings}
+            onOpenCostModal={handleOpenCostModal}
             onSelectSite={(id, tab = 'drafts') => {
               setSelectedSiteId(id);
               setActiveTab(tab);
@@ -775,6 +839,18 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Real-Time Token Economics & Full Pipeline Pricing Modal */}
+      <CostBreakdownModal 
+        isOpen={costModalOpen}
+        onClose={() => setCostModalOpen(false)}
+        topic={costModalTopic}
+        draft={costModalDraft}
+        settings={settings}
+        onSaveSettings={handleSaveSettings}
+        onNavigateSettings={() => setActiveTab('settings')}
+        activeTopicsCount={displayTopics.filter(t => t.is_active).length}
+      />
 
       {/* Footer */}
       <footer style={{ 
