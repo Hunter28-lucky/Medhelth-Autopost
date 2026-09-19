@@ -1,3 +1,4 @@
+import re
 import uuid
 import datetime
 import logging
@@ -315,8 +316,9 @@ class PublishingPipeline:
 
             if should_auto_push:
                 log_step("WP_PUSH_TRIGGERED", f"Automatic push policy active. Submitting draft to WordPress for site '{site_name}'...")
+                clean_title = re.sub(r'\s+\.', '.', generated_post.title or "").strip()
                 wp_payload = {
-                    "title": generated_post.title,
+                    "title": clean_title,
                     "slug": generated_post.slug,
                     "content": generated_post.body_html,
                     "body_html": generated_post.body_html,
@@ -391,8 +393,9 @@ class PublishingPipeline:
         clean_body = clean_semantic_post_html(post.body_html)
         post.body_html = clean_body
 
+        clean_title = re.sub(r'\s+\.', '.', post.title or "").strip()
         wp_payload = {
-            "title": post.title,
+            "title": clean_title,
             "body_html": clean_body,
             "slug": post.slug,
             "excerpt": post.excerpt,

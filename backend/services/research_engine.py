@@ -56,12 +56,7 @@ class ResearchEngine:
         """
         # 0. Fast-path: If an authentic peer-reviewed structured abstract was already fetched
         if fallback_snippet and len(fallback_snippet.split()) >= 35:
-            formatted_abstract = (
-                f"Verified Clinical Research Summary & Published Findings ({url}):\n"
-                f"{fallback_snippet.strip()}\n"
-                f"Contextual Evidence: Authentic findings documented in peer-reviewed clinical literature."
-            )
-            return {"text": formatted_abstract, "extraction_method": "clinical_abstract_verified"}
+            return {"text": fallback_snippet.strip(), "extraction_method": "clinical_abstract_verified"}
 
         # 1. Attempt Trafilatura web extraction with strict timeout
         try:
@@ -95,12 +90,7 @@ class ResearchEngine:
 
         # 3. Authentic PubMed / Europe PMC structured abstract or news snippet fallback
         if fallback_snippet and len(fallback_snippet.strip()) >= 25:
-            formatted_abstract = (
-                f"Verified Clinical Research Summary & Published Findings ({url}):\n"
-                f"{fallback_snippet.strip()}\n"
-                f"Contextual Evidence: Authentic findings documented in peer-reviewed clinical literature."
-            )
-            return {"text": formatted_abstract, "extraction_method": "clinical_abstract_verified"}
+            return {"text": fallback_snippet.strip(), "extraction_method": "clinical_abstract_verified"}
 
         return {"text": fallback_snippet, "extraction_method": "snippet_fallback"}
 
@@ -110,10 +100,18 @@ class ResearchEngine:
         hazard ratios, trial phases, and clinician quotes from text.
         """
         claims = []
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        sentences = re.split(r'(?<=[.!?])\s+|\n+', text)
         for s in sentences:
             s_clean = s.strip()
+            # Strip URLs
+            s_clean = re.sub(r'https?://\S+', '', s_clean).strip()
+            # Strip clinical headers
+            s_clean = re.sub(r'^(OBJECTIVE|BACKGROUND|METHODS|RESULTS|CONCLUSIONS|CONCLUSION)\s*:\s*', '', s_clean, flags=re.I).strip()
+            s_clean = re.sub(r'\s+', ' ', s_clean).strip(' :;-,."\'')
             if not s_clean or len(s_clean) < 25 or len(s_clean) > 350:
+                continue
+
+            if any(bad in s_clean.lower() for bad in ["verified clinical research", "published findings", "contextual evidence", "doi:"]):
                 continue
 
             # Check for authentic clinical study indicators

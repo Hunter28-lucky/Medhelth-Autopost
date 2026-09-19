@@ -173,7 +173,7 @@ The user has provided an explicit reference post to strictly emulate in structur
 === USER'S REFERENCE FORMAT TEMPLATE END ===
 
 CRITICAL STYLE CLONING INSTRUCTIONS:
-1. HEADLINE EMULATION: Formulate a punchy, active headline matching '[Focus Keyphrase] [Subject/Action/Detail] .'
+1. HEADLINE EMULATION: Formulate a punchy, active headline matching '[Focus Keyphrase] [Subject/Action/Detail].'
 2. H6 STRONG HEADINGS: Use strictly <h6><strong>Subheading Title</strong></h6> for all section headers.
 3. 5-6 SECTION CADENCE: Follow the exact 5-6 section, 1-3 paragraph per section layout (~480 words total).
 4. WORDING PLACEMENT: Replicate the smooth introductory lead-in, feature-by-feature progression, and forward-looking synthesis.
@@ -288,7 +288,15 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
         pub_date = primary_article.get("publish_date", "recent studies")
 
         # Derive a clean, specific 2-4 word focus keyphrase
-        title_words = [w for w in re.split(r'\W+', raw_title) if len(w) > 3 and w.lower() not in ["with", "from", "after", "over", "into", "study", "trial", "pilot", "report", "evaluated", "safety"]]
+        excluded_words = {
+            "with", "from", "after", "over", "into", "study", "trial", "pilot", "report",
+            "evaluated", "safety", "across", "among", "under", "through", "using", "toward",
+            "towards", "between", "against", "about", "within", "during", "before", "while",
+            "beyond", "around", "above", "below", "along", "behind", "recent", "novel", "early",
+            "first", "based", "phase", "cohort", "patient", "clinical", "system", "health",
+            "initiative", "perspective", "lessons", "review"
+        }
+        title_words = [w for w in re.split(r'\W+', raw_title) if len(w) > 3 and w.lower() not in excluded_words]
         if len(title_words) >= 3:
             focus_keyphrase = " ".join(title_words[:3]).title()
         elif len(title_words) >= 2:
@@ -370,10 +378,21 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
 
         slug = re.sub(r'[^a-z0-9]+', '-', f"{focus_keyphrase.lower()}-{topic_name.lower()}").strip('-')[:55]
 
-        # Extract authentic claims or establish domain defaults
-        c1 = claims[0] if len(claims) > 0 else "multicenter clinical evaluations demonstrated statistically significant patient improvements"
-        c2 = claims[1] if len(claims) > 1 else "comparative trial metrics revealed marked gains in therapeutic precision and clinical outcomes"
-        c3 = claims[2] if len(claims) > 2 else "longitudinal cohort surveillance confirmed persistent safety profiles and high treatment compliance"
+        # Extract authentic claims or establish domain defaults with strict sanitization
+        def _clean_claim_text(raw_claim: str, default_text: str) -> str:
+            if not raw_claim:
+                return default_text
+            cleaned = re.sub(r'https?://\S+', '', raw_claim)
+            cleaned = re.sub(r'^[A-Za-z\s&]+(\([^)]*\))?:\s*', '', cleaned)
+            cleaned = re.sub(r'^(OBJECTIVE|BACKGROUND|METHODS|RESULTS|CONCLUSIONS|CONCLUSION)\s*:\s*', '', cleaned, flags=re.I)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip(' :;-,."\'')
+            if not cleaned or len(cleaned) < 15 or any(b in cleaned.lower() for b in ["verified clinical", "published findings", "contextual evidence"]):
+                return default_text
+            return cleaned[0].lower() + cleaned[1:]
+
+        c1 = _clean_claim_text(claims[0] if len(claims) > 0 else "", "multicenter clinical evaluations demonstrated statistically significant patient improvements")
+        c2 = _clean_claim_text(claims[1] if len(claims) > 1 else "", "comparative trial metrics revealed marked gains in therapeutic precision and clinical outcomes")
+        c3 = _clean_claim_text(claims[2] if len(claims) > 2 else "", "longitudinal cohort surveillance confirmed persistent safety profiles and high treatment compliance")
 
         # Domain-specific procedural article generators
         if assigned_domain == "ai_diagnostics":
@@ -815,7 +834,7 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
 
         return {
             "focus_keyphrase": focus_keyphrase,
-            "title": f"{headline} .",
+            "title": f"{headline.rstrip('. ')}.",
             "slug": slug[:60],
             "excerpt": f"An evidence-based clinical analysis of {focus_keyphrase} published in {journal_source}, evaluating trial methodology, statistical outcomes, and workflow integration.",
             "body_html": clean_body,
