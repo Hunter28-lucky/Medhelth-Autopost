@@ -222,6 +222,11 @@ class DraftBulkDeleteResponse(BaseModel):
     deleted_count: int
     message: str
 
+class DraftBulkPushRequest(BaseModel):
+    post_ids: Optional[List[int]] = Field(default_factory=list, description="List of post IDs to push to WordPress")
+    site_id: Optional[int] = Field(None, description="Target site ID if pushing all pending")
+    all_pending: bool = Field(False, description="If true, pushes all pending/approved drafts for site")
+
 # --- Run & Scheduler Schemas ---
 class RunTriggerRequest(BaseModel):
     site_id: Optional[int] = Field(None, description="Target site ID (null executes for active topic/site)")

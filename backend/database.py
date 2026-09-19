@@ -6,7 +6,7 @@ from backend.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    connect_args={"check_same_thread": False, "timeout": 30} if "sqlite" in settings.DATABASE_URL else {}
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -25,8 +25,13 @@ async def get_db():
             await session.close()
 
 def _migrate_sqlite_schema(sync_conn):
-    """Safely adds missing columns to existing SQLite database tables."""
+    """Safely adds missing columns to existing SQLite database tables and optimizes pragmas."""
     cursor = sync_conn.connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA busy_timeout=30000;")
+    except Exception:
+        pass
     columns_to_ensure = [
         ("topics", "site_id", "INTEGER DEFAULT 1"),
         ("content_rules", "site_id", "INTEGER DEFAULT 1"),

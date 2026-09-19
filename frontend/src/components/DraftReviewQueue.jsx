@@ -8,6 +8,7 @@ import YoastSeoInspector from './YoastSeoInspector';
 export default function DraftReviewQueue({ 
   drafts, 
   settings = null,
+  selectedSiteId = null,
   onOpenCostModal = null,
   onSelectSite, 
   onRefresh 
@@ -20,6 +21,7 @@ export default function DraftReviewQueue({
   const [selectedIds, setSelectedIds] = useState([]);
   const [confirmDeleteModal, setConfirmDeleteModal] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
+  const [pushMessage, setPushMessage] = useState(null);
 
   // Currency helpers
   const currency = settings?.cost_currency || 'USD';
@@ -153,6 +155,61 @@ export default function DraftReviewQueue({
     }
   };
 
+  const handlePushSelected = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to push ${selectedIds.length} approved drafts to WordPress?`)) return;
+    setIsActionLoading(true);
+    setPushMessage(null);
+    try {
+      const res = await fetch('/api/drafts/bulk-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_ids: selectedIds })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to push drafts');
+      setPushMessage({
+        type: 'success',
+        text: `WordPress Push Complete: ${data.pushed_count} posts successfully sent to WordPress!${data.failed_count > 0 ? ` (${data.failed_count} failed)` : ''}`
+      });
+      setSelectedIds([]);
+      if (typeof onRefresh === 'function') onRefresh();
+    } catch (err) {
+      setPushMessage({ type: 'error', text: 'Error during bulk push: ' + err.message });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handlePushAllPending = async () => {
+    const eligibleDrafts = filteredDrafts.filter(d => d.status === 'PENDING_REVIEW' || d.status === 'APPROVED');
+    if (eligibleDrafts.length === 0) return;
+    if (!confirm(`Publish all ${eligibleDrafts.length} pending drafts to WordPress?`)) return;
+    setIsActionLoading(true);
+    setPushMessage(null);
+    try {
+      const res = await fetch('/api/drafts/bulk-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          all_pending: true,
+          site_id: selectedSiteId || null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to push drafts');
+      setPushMessage({
+        type: 'success',
+        text: `WordPress Push Complete: ${data.pushed_count} posts successfully sent to WordPress!${data.failed_count > 0 ? ` (${data.failed_count} failed)` : ''}`
+      });
+      if (typeof onRefresh === 'function') onRefresh();
+    } catch (err) {
+      setPushMessage({ type: 'error', text: 'Error during bulk push: ' + err.message });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const handleAction = async (postId, action, feedback = null) => {
     setIsActionLoading(true);
     try {
@@ -258,74 +315,133 @@ export default function DraftReviewQueue({
 
       {/* Bulk Action & Management Toolbar */}
       {filteredDrafts.length > 0 && (
-        <div 
-          className="glass-card" 
-          style={{ 
-            padding: '12px 20px', 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            flexWrap: 'wrap', 
-            gap: '12px',
-            background: 'rgba(15, 23, 42, 0.65)',
-            border: '1px solid rgba(255, 255, 255, 0.08)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', fontSize: '0.875rem', userSelect: 'none' }}>
-              <input 
-                type="checkbox" 
-                checked={filteredDrafts.length > 0 && filteredDrafts.every(d => selectedIds.includes(d.id))}
-                onChange={toggleSelectAll}
-                style={{ width: '16px', height: '16px', accentColor: '#00f0ff', cursor: 'pointer' }}
-              />
-              <span>Select All ({filteredDrafts.length})</span>
-            </label>
+        <>
+          {/* Push Notification Banner */}
+          {pushMessage && (
+            <div style={{
+              padding: '12px 18px',
+              marginBottom: '12px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: pushMessage.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+              border: pushMessage.type === 'success' ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid rgba(244, 63, 94, 0.4)',
+              color: pushMessage.type === 'success' ? '#34d399' : '#fb7185',
+              fontSize: '0.88rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {pushMessage.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+                <span>{pushMessage.text}</span>
+              </div>
+              <button 
+                onClick={() => setPushMessage(null)}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
 
-            {selectedIds.length > 0 && (
-              <>
-                <span className="badge badge-rose" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
-                  {selectedIds.length} Selected
-                </span>
+          <div 
+            className="glass-card" 
+            style={{ 
+              padding: '12px 20px', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              flexWrap: 'wrap', 
+              gap: '12px',
+              background: 'rgba(15, 23, 42, 0.65)',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#fff', fontSize: '0.875rem', userSelect: 'none' }}>
+                <input 
+                  type="checkbox" 
+                  checked={filteredDrafts.length > 0 && filteredDrafts.every(d => selectedIds.includes(d.id))}
+                  onChange={toggleSelectAll}
+                  style={{ width: '16px', height: '16px', accentColor: '#00f0ff', cursor: 'pointer' }}
+                />
+                <span>Select All ({filteredDrafts.length})</span>
+              </label>
+
+              {selectedIds.length > 0 && (
+                <>
+                  <span className="badge badge-rose" style={{ padding: '4px 10px', fontSize: '0.8rem' }}>
+                    {selectedIds.length} Selected
+                  </span>
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={handlePushSelected}
+                    disabled={isActionLoading}
+                    title="Approve and push selected drafts directly to WordPress"
+                  >
+                    <Send size={14} /> Push Selected to WordPress ({selectedIds.length})
+                  </button>
+                  <button 
+                    className="btn btn-danger" 
+                    style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    onClick={handleDeleteSelected}
+                    disabled={isActionLoading}
+                  >
+                    <Trash2 size={14} /> Delete Selected ({selectedIds.length})
+                  </button>
+                  <button 
+                    className="btn btn-ghost" 
+                    style={{ padding: '6px 10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}
+                    onClick={() => setSelectedIds([])}
+                  >
+                    Deselect All
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {filteredDrafts.some(d => d.status === 'PENDING_REVIEW' || d.status === 'APPROVED') && (
                 <button 
-                  className="btn btn-danger" 
-                  style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  onClick={handleDeleteSelected}
+                  className="btn btn-primary" 
+                  style={{ 
+                    padding: '6px 14px', 
+                    fontSize: '0.8rem', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                    background: 'linear-gradient(135deg, #00f0ff 0%, #6366f1 100%)',
+                    color: '#041019',
+                    fontWeight: '700'
+                  }}
+                  onClick={handlePushAllPending}
                   disabled={isActionLoading}
+                  title="Publish all pending drafts directly to WordPress as drafts"
                 >
-                  <Trash2 size={14} /> Delete Selected ({selectedIds.length})
+                  <Send size={14} style={{ fill: '#041019' }} /> Push All to WordPress ({filteredDrafts.filter(d => d.status === 'PENDING_REVIEW' || d.status === 'APPROVED').length})
                 </button>
-                <button 
-                  className="btn btn-ghost" 
-                  style={{ padding: '6px 10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}
-                  onClick={() => setSelectedIds([])}
-                >
-                  Deselect All
-                </button>
-              </>
-            )}
-          </div>
+              )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button 
-              className="btn btn-ghost" 
-              style={{ 
-                color: '#f43f5e', 
-                padding: '6px 12px', 
-                fontSize: '0.8rem', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '6px',
-                border: '1px solid rgba(244, 63, 94, 0.2)' 
-              }}
-              onClick={handleDeleteAllFiltered}
-              disabled={isActionLoading}
-              title="Delete all drafts currently matching this filter"
-            >
-              <Trash2 size={14} /> Delete All {statusFilter === 'ALL' ? 'Drafts' : statusFilter.replace('_', ' ')} ({filteredDrafts.length})
-            </button>
+              <button 
+                className="btn btn-ghost" 
+                style={{ 
+                  color: '#f43f5e', 
+                  padding: '6px 12px', 
+                  fontSize: '0.8rem', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  border: '1px solid rgba(244, 63, 94, 0.2)' 
+                }}
+                onClick={handleDeleteAllFiltered}
+                disabled={isActionLoading}
+                title="Delete all drafts currently matching this filter"
+              >
+                <Trash2 size={14} /> Delete All {statusFilter === 'ALL' ? 'Drafts' : statusFilter.replace('_', ' ')} ({filteredDrafts.length})
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Drafts List */}

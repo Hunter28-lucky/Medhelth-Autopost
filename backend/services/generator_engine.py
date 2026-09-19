@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -207,7 +208,8 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
         if self.openrouter_client.is_configured():
             try:
                 logger.info(f"Generating draft using OpenRouter Free AI ({self.openrouter_client.model})...")
-                res = self.openrouter_client.generate_chat_completion(
+                res = await asyncio.to_thread(
+                    self.openrouter_client.generate_chat_completion,
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=0.3,
@@ -222,7 +224,8 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
         # 2. Try Anthropic Claude if configured
         if self.anthropic_client:
             try:
-                response = self.anthropic_client.messages.create(
+                response = await asyncio.to_thread(
+                    self.anthropic_client.messages.create,
                     model=self.anthropic_model,
                     max_tokens=4000,
                     temperature=0.3,

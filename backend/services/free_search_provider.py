@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import datetime
 import urllib.parse
@@ -35,6 +36,23 @@ class FreeOnlineSearchProvider(SearchProvider):
         }
 
     async def search(
+        self,
+        queries: List[str],
+        lookback_days: int = 7,
+        max_results: int = 5,
+        domain_whitelist: Optional[List[str]] = None,
+        domain_blocklist: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        return await asyncio.to_thread(
+            self._sync_search,
+            queries=queries,
+            lookback_days=lookback_days,
+            max_results=max_results,
+            domain_whitelist=domain_whitelist,
+            domain_blocklist=domain_blocklist
+        )
+
+    def _sync_search(
         self,
         queries: List[str],
         lookback_days: int = 7,

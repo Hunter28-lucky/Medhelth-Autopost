@@ -3,7 +3,7 @@ import {
   Activity, Layers, Sliders, FileText, PlayCircle, Settings as SettingsIcon, 
   Globe, AlertCircle, ExternalLink, Sparkles,
   Shield, Lock, LogOut, Eye, EyeOff, ChevronDown, Plus,
-  DollarSign, TrendingUp
+  DollarSign, TrendingUp, RefreshCw, Zap, X
 } from 'lucide-react';
 
 import { getDeveloperToken, setDeveloperToken, removeDeveloperToken } from './apiClient';
@@ -39,6 +39,8 @@ export default function App() {
   const [runLogs, setRunLogs] = useState([]);
   const [settings, setSettings] = useState(null);
   const [schedulerStatus, setSchedulerStatus] = useState(null);
+  const [batchStatus, setBatchStatus] = useState(null);
+  const [batchToast, setBatchToast] = useState(null);
 
   // Check developer session on startup
   useEffect(() => {
@@ -78,6 +80,20 @@ export default function App() {
     return () => window.removeEventListener('pulse_auth_required', handleAuthRequired);
   }, []);
 
+  const fetchBatchStatus = async () => {
+    try {
+      const res = await fetch('/api/runs/batch-status');
+      if (res.ok) {
+        const data = await res.json();
+        setBatchStatus(data);
+        return data;
+      }
+    } catch (_err) {
+      // Ignore background status polling errors
+    }
+    return null;
+  };
+
   const fetchAllData = async () => {
     try {
       const [sitesRes, tRes, rRes, dRes, lRes, sRes, scRes] = await Promise.all([
@@ -97,6 +113,7 @@ export default function App() {
       setRunLogs(Array.isArray(lRes) ? lRes : []);
       setSettings(sRes);
       setSchedulerStatus(scRes);
+      fetchBatchStatus();
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     }
@@ -111,12 +128,29 @@ export default function App() {
       .catch(console.error);
   }, [selectedSiteId, isAuthenticated]);
 
+  // Standard polling every 10s
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchAllData();
-    const interval = setInterval(fetchAllData, 10000); // Poll every 10s for live run updates
+    fetchBatchStatus();
+    const interval = setInterval(() => {
+      fetchAllData();
+      fetchBatchStatus();
+    }, 10000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
+
+  // Fast polling (every 2.5s) when batch publishing run is active
+  useEffect(() => {
+    if (!isAuthenticated || !batchStatus?.is_running) return;
+    const fastInterval = setInterval(async () => {
+      const updated = await fetchBatchStatus();
+      if (updated && !updated.is_running) {
+        fetchAllData();
+      }
+    }, 2500);
+    return () => clearInterval(fastInterval);
+  }, [isAuthenticated, batchStatus?.is_running]);
 
   const handleDeveloperLogin = async (e) => {
     e.preventDefault();
@@ -152,21 +186,50 @@ export default function App() {
   };
 
   const handleTriggerRun = async (topicId = null) => {
-    const res = await fetch('/api/runs/trigger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        site_id: selectedSiteId, 
-        topic_id: topicId, 
-        force_fresh_search: true 
-      })
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.detail || 'Failed to trigger run');
+    const targetSiteId = selectedSiteId || 1;
+    try {
+      const res = await fetch('/api/runs/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          site_id: targetSiteId, 
+          topic_id: topicId, 
+          force_fresh_search: true 
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Failed to trigger run');
+      }
+
+      if (topicId) {
+        setActiveTab('runs');
+        setTimeout(fetchAllData, 1200);
+      } else {
+        // Full catalog batch run triggered
+        await fetchBatchStatus();
+        setBatchToast({
+          message: data.message || `Full batch generation initiated for ${currentSite?.name || 'MedHealth Times'}`
+        });
+        setTimeout(() => setBatchToast(null), 6000);
+      }
+    } catch (err) {
+      alert('Failed to trigger run: ' + err.message);
     }
-    setActiveTab('runs');
-    setTimeout(fetchAllData, 1200);
+  };
+
+  const handleCancelBatch = async () => {
+    try {
+      const res = await fetch('/api/runs/batch-cancel', { method: 'POST' });
+      const data = await res.json();
+      await fetchBatchStatus();
+      setBatchToast({
+        message: data.message || 'Batch cancellation requested.'
+      });
+      setTimeout(() => setBatchToast(null), 5000);
+    } catch (err) {
+      alert('Failed to cancel batch: ' + err.message);
+    }
   };
 
   const handleSaveContentRules = async (updatedRules) => {
@@ -615,8 +678,17 @@ export default function App() {
             <button 
               className="btn btn-primary app-run-btn"
               onClick={() => handleTriggerRun(null)}
+              disabled={batchStatus?.is_running}
             >
-              <Sparkles size={14} style={{ flexShrink: 0 }} /> Run Pipeline
+              {batchStatus?.is_running ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" style={{ flexShrink: 0 }} /> Running ({batchStatus.processed_topics}/{batchStatus.total_topics})
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} style={{ flexShrink: 0 }} /> Run Pipeline
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -624,6 +696,104 @@ export default function App() {
 
       {/* Main Content View */}
       <main style={{ flex: 1, maxWidth: '1560px', width: '100%', margin: '0 auto', padding: '28px 20px' }}>
+        {/* Floating Batch Notification Toast */}
+        {batchToast && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 9999,
+            background: 'rgba(4, 16, 25, 0.95)',
+            border: '1px solid #00f0ff',
+            color: '#fff',
+            padding: '12px 18px',
+            borderRadius: '10px',
+            boxShadow: '0 8px 30px rgba(0, 240, 255, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.88rem'
+          }}>
+            <Sparkles size={16} style={{ color: '#00f0ff' }} />
+            <span>{batchToast.message}</span>
+            <button 
+              onClick={() => setBatchToast(null)} 
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Live Batch Execution Banner */}
+        {batchStatus?.is_running && (
+          <div className="glass-card" style={{
+            padding: '16px 22px',
+            marginBottom: '22px',
+            background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.09) 0%, rgba(99, 102, 241, 0.09) 100%)',
+            border: '1px solid rgba(0, 240, 255, 0.45)',
+            boxShadow: '0 0 30px rgba(0, 240, 255, 0.15)',
+            borderRadius: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <span className="badge badge-cyan" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', padding: '4px 10px' }}>
+                  <RefreshCw size={12} className="animate-spin" /> Batch Pipeline Active
+                </span>
+                <strong style={{ color: '#fff', fontSize: '0.98rem' }}>
+                  {batchStatus.site_name} &bull; Generating Article {batchStatus.current_topic_index} of {batchStatus.total_topics}
+                </strong>
+                {batchStatus.current_topic_name && (
+                  <span style={{ color: '#00f0ff', fontWeight: '700', fontSize: '0.92rem' }}>
+                    [{batchStatus.current_topic_name}]
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setActiveTab('drafts')}
+                  style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+                >
+                  <FileText size={13} /> View Drafts ({displayDrafts.length})
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={handleCancelBatch}
+                  disabled={batchStatus.status === 'CANCELLING'}
+                  style={{ fontSize: '0.78rem', padding: '5px 12px', color: '#f43f5e', border: '1px solid rgba(244, 63, 94, 0.3)' }}
+                  title="Halt remaining topics in this batch"
+                >
+                  <X size={13} /> {batchStatus.status === 'CANCELLING' ? 'Halting...' : 'Stop Batch'}
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${batchStatus.progress_percentage || 0}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #00f0ff 0%, #6366f1 100%)',
+                transition: 'width 0.4s ease-in-out',
+                borderRadius: '4px'
+              }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', fontSize: '0.8rem', color: 'var(--text-secondary)', flexWrap: 'wrap', gap: '8px' }}>
+              <span>
+                Progress: <strong>{batchStatus.processed_topics} of {batchStatus.total_topics}</strong> categories processed ({batchStatus.progress_percentage}%) &bull; {batchStatus.completed_topics} succeeded, {batchStatus.failed_topics} failed
+              </span>
+              {batchStatus.last_generated_post_title && (
+                <span style={{ color: '#a5b4fc', maxWidth: '450px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  Latest: <em>{batchStatus.last_generated_post_title}</em>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Active Context Banner: Global Dashboard vs Dedicated Website Control Center */}
         <div className="glass-card" style={{
           padding: '16px 22px',
@@ -708,10 +878,19 @@ export default function App() {
                 <button
                   className="btn btn-primary"
                   onClick={() => handleTriggerRun(null)}
+                  disabled={batchStatus?.is_running}
                   style={{ fontSize: '0.82rem', padding: '7px 14px' }}
-                  title={`Trigger automated article run for ${currentSite.name}`}
+                  title={`Run all ${displayTopics.filter(t => t.is_active).length} categories for ${currentSite.name}`}
                 >
-                  <Sparkles size={14} /> Run for {currentSite.name}
+                  {batchStatus?.is_running && batchStatus?.site_id === currentSite.id ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> Running ({batchStatus.processed_topics}/{batchStatus.total_topics})...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={14} style={{ color: '#00f0ff' }} /> Run All for {currentSite.name} ({displayTopics.filter(t => t.is_active).length})
+                    </>
+                  )}
                 </button>
               </>
             ) : (
@@ -745,6 +924,7 @@ export default function App() {
             selectedSiteId={selectedSiteId}
             sites={sites}
             settings={settings}
+            batchStatus={batchStatus}
             onOpenCostModal={handleOpenCostModal}
             onSelectSite={(id, tab = 'topics') => {
               setSelectedSiteId(id);
@@ -767,6 +947,7 @@ export default function App() {
           <DraftReviewQueue 
             drafts={displayDrafts} 
             settings={settings}
+            selectedSiteId={selectedSiteId}
             onOpenCostModal={handleOpenCostModal}
             onSelectSite={(id, tab = 'drafts') => {
               setSelectedSiteId(id);

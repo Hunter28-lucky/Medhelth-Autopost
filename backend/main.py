@@ -18,7 +18,7 @@ from backend.schemas import (
     TopicCreate, TopicUpdate, TopicResponse, TopicBulkImport,
     ContentRuleResponse, ContentRuleUpdate,
     GeneratedPostResponse, DraftReviewAction,
-    DraftBulkDeleteRequest, DraftBulkDeleteResponse,
+    DraftBulkDeleteRequest, DraftBulkDeleteResponse, DraftBulkPushRequest,
     RunTriggerRequest, RunLogResponse,
     SettingsResponse, SettingsUpdate,
     AuthLoginRequest, AuthLoginResponse,
@@ -31,6 +31,7 @@ from backend.services.research_engine import ResearchEngine
 from backend.services.generator_engine import ContentGenerator, clean_semantic_post_html
 from backend.services.dedup_engine import DeduplicationEngine
 from backend.services.pipeline import PublishingPipeline
+from backend.services.batch_runner import BatchExecutionManager
 from backend.services.scheduler import scheduler_service
 from backend.services.wp_client import WordPressClient
 from backend.services.yoast_optimizer import yoast_optimizer
@@ -42,6 +43,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("publisher.api")
 
 pipeline = PublishingPipeline()
+batch_runner = BatchExecutionManager.get_instance(pipeline=pipeline)
 
 async def seed_initial_data():
     """Seed initial managed sites, topics, and content rules if database is fresh."""
@@ -699,6 +701,8 @@ async def trigger_run(
 ):
     """
     Trigger a run immediately for a specific topic, or all active topics of a site.
+    When topic_id is None, triggers an asynchronous batch run across ALL active topics
+    belonging strictly to the target website.
     """
     if payload.topic_id:
         topic = await db.get(Topic, payload.topic_id)
@@ -707,21 +711,38 @@ async def trigger_run(
         background_tasks.add_task(run_pipeline_task, payload.topic_id, payload.force_fresh_search)
         return {"status": "queued", "message": f"Run queued for topic: {topic.name}"}
     else:
-        # Trigger for active topics of specified site (or all active if none specified)
-        stmt = select(Topic).where(Topic.is_active == True)
-        if payload.site_id:
-            stmt = stmt.where(Topic.site_id == payload.site_id)
-        stmt = stmt.order_by(desc(Topic.weight))
-        result = await db.execute(stmt)
-        active_topics = result.scalars().all()
-        if not active_topics:
-            raise HTTPException(status_code=400, detail="No active topics found for this selection.")
+        target_site_id = payload.site_id or 1
+        res = await batch_runner.start_batch(
+            site_id=target_site_id,
+            force_fresh_search=payload.force_fresh_search
+        )
+        if not res.get("success") and not res.get("already_running"):
+            raise HTTPException(status_code=400, detail=res.get("message", "No active topics found for this selection."))
 
-        to_run = active_topics[:3] if len(active_topics) > 3 else active_topics
-        for t in to_run:
-            background_tasks.add_task(run_pipeline_task, t.id, payload.force_fresh_search)
+        return {
+            "status": "started" if res.get("success") else "already_running",
+            "message": res.get("message"),
+            "total_topics": res.get("total_topics", 0),
+            "site_id": target_site_id,
+            "site_name": res.get("site_name", "MedHealth Times"),
+            "batch_status": res.get("status")
+        }
 
-        return {"status": "queued", "message": f"Runs queued for {len(to_run)} active topics."}
+@app.get("/api/runs/batch-status")
+async def get_batch_status():
+    """
+    Returns real-time progress, currently executing topic, and completion statistics
+    for the active background batch publishing pipeline.
+    """
+    return batch_runner.get_status()
+
+@app.post("/api/runs/batch-cancel", dependencies=[Depends(require_developer)])
+async def cancel_batch_run():
+    """
+    Gracefully halts an active background batch execution after the currently processing topic completes.
+    """
+    res = await batch_runner.cancel_batch()
+    return res
 
 @app.get("/api/runs/history", response_model=List[RunLogResponse])
 async def get_run_history(
@@ -969,6 +990,63 @@ async def bulk_delete_drafts(
         )
     else:
         raise HTTPException(status_code=400, detail="Must provide post_ids or set delete_all=True.")
+
+@app.post("/api/drafts/bulk-push", dependencies=[Depends(require_developer)])
+async def bulk_push_drafts(
+    payload: DraftBulkPushRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Pushes multiple approved drafts to WordPress in batch.
+    Allows pushing selected IDs, or all pending/approved drafts for a specific site.
+    """
+    if payload.post_ids:
+        stmt = select(GeneratedPost).where(GeneratedPost.id.in_(payload.post_ids))
+    elif payload.all_pending:
+        stmt = select(GeneratedPost).where(
+            GeneratedPost.status.in_(["PENDING_REVIEW", "APPROVED"])
+        )
+        if payload.site_id:
+            stmt = stmt.where(GeneratedPost.site_id == payload.site_id)
+    else:
+        raise HTTPException(status_code=400, detail="Must provide post_ids or set all_pending=true.")
+
+    result = await db.execute(stmt)
+    posts = result.scalars().all()
+    if not posts:
+        return {
+            "success": True,
+            "pushed_count": 0,
+            "failed_count": 0,
+            "message": "No matching drafts found to push."
+        }
+
+    pushed = []
+    failed = []
+    for post in posts:
+        res = await pipeline.push_draft_to_wordpress(db, post.id)
+        if res.get("success"):
+            pushed.append({
+                "id": post.id,
+                "title": post.title,
+                "wp_post_id": res.get("wp_post_id"),
+                "edit_url": res.get("edit_url")
+            })
+        else:
+            failed.append({
+                "id": post.id,
+                "title": post.title,
+                "error": res.get("error")
+            })
+
+    return {
+        "success": True,
+        "pushed_count": len(pushed),
+        "failed_count": len(failed),
+        "pushed": pushed,
+        "failed": failed,
+        "message": f"Bulk push completed: {len(pushed)} successfully sent to WordPress, {len(failed)} failed."
+    }
 
 @app.get("/api/drafts/{post_id}/yoast-audit")
 async def get_draft_yoast_audit(post_id: int, db: AsyncSession = Depends(get_db)):

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Plus, Upload, Play, Edit3, Trash2, Globe, ShieldAlert, CheckCircle2, 
-  Search, X, AlertCircle, DollarSign, TrendingUp
+  Search, X, AlertCircle, DollarSign, TrendingUp, RefreshCw, Zap
 } from 'lucide-react';
 
 export default function TopicManager({ 
@@ -9,6 +9,7 @@ export default function TopicManager({
   selectedSiteId, 
   sites = [], 
   settings = null,
+  batchStatus = null,
   onOpenCostModal = null,
   onSelectSite, 
   onRefresh, 
@@ -239,6 +240,30 @@ export default function TopicManager({
               onChange={e => setSearchFilter(e.target.value)}
             />
           </div>
+
+          <button 
+            className="btn btn-primary"
+            onClick={() => onTriggerRun(null)}
+            disabled={batchStatus?.is_running || activeTopics.length === 0}
+            style={{ 
+              background: 'linear-gradient(135deg, #00f0ff 0%, #6366f1 100%)', 
+              color: '#041019', 
+              fontWeight: '700',
+              padding: '8px 16px',
+              fontSize: '0.85rem'
+            }}
+            title={`Trigger automated batch generation for all ${activeTopics.length} categories on ${activeSite?.name || 'this website'}`}
+          >
+            {batchStatus?.is_running && batchStatus?.site_id === (selectedSiteId || 1) ? (
+              <>
+                <RefreshCw size={15} className="animate-spin" /> Running ({batchStatus.processed_topics}/{batchStatus.total_topics})...
+              </>
+            ) : (
+              <>
+                <Zap size={15} style={{ fill: '#041019' }} /> Run All {activeTopics.length} Categories
+              </>
+            )}
+          </button>
 
           <button className="btn btn-secondary" onClick={() => setIsBulkOpen(true)}>
             <Upload size={16} /> Bulk Paste

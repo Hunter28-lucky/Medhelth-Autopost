@@ -1,3 +1,4 @@
+import asyncio
 import re
 import hashlib
 import difflib
@@ -184,14 +185,15 @@ class ResearchEngine:
                 continue
 
             # 3. Respect robots.txt
-            if not self.is_scraping_allowed(url):
+            allowed = await asyncio.to_thread(self.is_scraping_allowed, url)
+            if not allowed:
                 logger.info(f"Skipping {url} due to robots.txt restrictions.")
                 continue
 
             source_domain = urllib.parse.urlparse(url).netloc
 
             # 4. Extract genuine article text or authentic structured abstract
-            extraction = self.extract_article_text(url, item.get("snippet", ""))
+            extraction = await asyncio.to_thread(self.extract_article_text, url, item.get("snippet", ""))
             full_text = extraction["text"]
 
             if len(full_text.split()) < 20:
