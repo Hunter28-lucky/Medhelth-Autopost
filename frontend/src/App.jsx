@@ -214,8 +214,8 @@ export default function App() {
   const costSymbols = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
   const costSymbol = costSymbols[costCurrency] || '$';
   const exchangeRate = settings?.cost_exchange_rate || 87.5;
-  const isCostOverride = settings?.cost_manual_override_enabled;
-  const unitCostUsd = isCostOverride ? (settings?.cost_fixed_per_post || 0.0035) : 0.0035;
+  const isCostOverride = settings?.cost_manual_override_enabled !== false;
+  const unitCostUsd = (settings?.cost_fixed_per_post !== undefined && settings.cost_fixed_per_post > 0) ? settings.cost_fixed_per_post : 0.0035;
 
   const formatCostGlobal = (usdAmount) => {
     let rate = 1.0;

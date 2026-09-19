@@ -6,6 +6,7 @@ import {
 
 export default function SystemSettings({ settings, onSaveSettings }) {
   const [formData, setFormData] = useState({});
+  const [costMode, setCostMode] = useState('direct'); // 'direct' or 'tokens'
   const [wpTestResult, setWpTestResult] = useState(null);
   const [isTestingWp, setIsTestingWp] = useState(false);
   const [openrouterTestResult, setOpenrouterTestResult] = useState(null);
@@ -20,20 +21,20 @@ export default function SystemSettings({ settings, onSaveSettings }) {
         wordpress_api_key: '',
         ai_provider: settings.ai_provider || 'openrouter',
         openrouter_api_key: '',
-        openrouter_model: settings.openrouter_model || 'meta-llama/llama-3.3-70b-instruct:free',
+        openrouter_model: settings.openrouter_model || 'google/gemma-4-31b-it:free',
         search_provider: settings.search_provider || 'free_online',
         serpapi_api_key: '',
         newsapi_api_key: '',
         bing_api_key: '',
         anthropic_api_key: '',
         anthropic_model: settings.anthropic_model || 'claude-3-5-sonnet-20241022',
-        dedup_threshold: settings.dedup_threshold || 0.80,
+        dedup_threshold: settings.dedup_threshold || 0.70,
         cost_currency: settings.cost_currency || 'USD',
         cost_exchange_rate: settings.cost_exchange_rate || 87.5,
         cost_prompt_per_1m: settings.cost_prompt_per_1m !== undefined ? settings.cost_prompt_per_1m : 0.15,
         cost_completion_per_1m: settings.cost_completion_per_1m !== undefined ? settings.cost_completion_per_1m : 0.60,
         cost_per_search_query: settings.cost_per_search_query !== undefined ? settings.cost_per_search_query : 0.0015,
-        cost_manual_override_enabled: settings.cost_manual_override_enabled || false,
+        cost_manual_override_enabled: true, // Default to true so direct dollar pricing is active out-of-the-box
         cost_fixed_per_post: settings.cost_fixed_per_post !== undefined ? settings.cost_fixed_per_post : 0.0035,
       });
     }
@@ -44,19 +45,36 @@ export default function SystemSettings({ settings, onSaveSettings }) {
   };
 
   const handleSave = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setIsSaving(true);
     try {
-      // Filter empty keys so we don't overwrite already configured keys with empty string
       const payload = {};
       Object.keys(formData).forEach(k => {
-        if (formData[k] !== '') {
+        if (formData[k] !== '' && formData[k] !== undefined && !Number.isNaN(formData[k])) {
           payload[k] = formData[k];
         }
       });
+      // Ensure numeric types
+      if (payload.cost_fixed_per_post !== undefined) {
+        payload.cost_fixed_per_post = parseFloat(payload.cost_fixed_per_post) || 0.0035;
+        payload.cost_manual_override_enabled = true;
+      }
+      if (payload.cost_exchange_rate !== undefined) {
+        payload.cost_exchange_rate = parseFloat(payload.cost_exchange_rate) || 87.5;
+      }
+      if (payload.cost_prompt_per_1m !== undefined) {
+        payload.cost_prompt_per_1m = parseFloat(payload.cost_prompt_per_1m) || 0.15;
+      }
+      if (payload.cost_completion_per_1m !== undefined) {
+        payload.cost_completion_per_1m = parseFloat(payload.cost_completion_per_1m) || 0.60;
+      }
+      if (payload.cost_per_search_query !== undefined) {
+        payload.cost_per_search_query = parseFloat(payload.cost_per_search_query) || 0.0015;
+      }
+
       await onSaveSettings(payload);
       setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2500);
+      setTimeout(() => setSavedSuccess(false), 3000);
     } catch (err) {
       alert('Failed to save settings: ' + err.message);
     } finally {
@@ -100,13 +118,13 @@ export default function SystemSettings({ settings, onSaveSettings }) {
             System Integrations & API Keys <span className="badge badge-indigo">Security Vault</span>
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Manage API credentials for WordPress, Anthropic Claude, Search providers, and Deduplication algorithms.
+            Manage API credentials, real-time article cost pricing in dollars, and content deduplication.
           </p>
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={isSaving}>
+        <button type="submit" className="btn btn-primary" disabled={isSaving} style={{ padding: '8px 20px' }}>
           {savedSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
-          {isSaving ? 'Saving...' : savedSuccess ? 'Credentials Saved!' : 'Save Credentials'}
+          {isSaving ? 'Saving Changes...' : savedSuccess ? 'Settings Saved!' : 'Save All Settings'}
         </button>
       </div>
 
@@ -488,31 +506,223 @@ export default function SystemSettings({ settings, onSaveSettings }) {
         </div>
 
         {/* Token Economics & API Pricing Engine */}
-        <div className="glass-card" style={{ padding: '24px', gridColumn: '1 / -1', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+        <div className="glass-card" style={{ padding: '24px', gridColumn: '1 / -1', border: '1px solid rgba(0, 240, 255, 0.35)' }}>
+          {/* Card Top Header with prominent Save button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3 style={{ fontSize: '1.2rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <DollarSign size={20} style={{ color: '#00f0ff' }} /> Token Economics & API Pricing Engine
+              <h3 style={{ fontSize: '1.25rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <DollarSign size={20} style={{ color: '#00f0ff' }} /> Token Economics & Article Pricing
                 <span className="badge badge-cyan">Auditable Cost Engine</span>
               </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '3px' }}>
-                Configure real-time unit pricing rates, default display currency (Dollars, Rupees, Euros, Pounds), and client presentation cost benchmarks.
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '3px', margin: 0 }}>
+                Directly write your exact cost per article in dollars, or configure advanced token rates.
               </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className={`badge ${formData.cost_manual_override_enabled ? 'badge-amber' : 'badge-emerald'}`}>
-                {formData.cost_manual_override_enabled ? 'Manual Benchmark Override Active' : 'Dynamic Token Pricing Active'}
-              </span>
+              <button
+                type="button"
+                onClick={handleSave}
+                className="btn btn-primary"
+                disabled={isSaving}
+                style={{ padding: '7px 18px', fontSize: '0.84rem' }}
+                title="Save pricing and cost settings"
+              >
+                {savedSuccess ? <CheckCircle2 size={15} /> : <Save size={15} />}
+                {isSaving ? 'Saving...' : savedSuccess ? 'Cost Settings Saved!' : 'Save Cost Settings'}
+              </button>
             </div>
           </div>
 
+          {/* Pricing Mode Switcher */}
+          <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-surface-elevated)', padding: '4px', borderRadius: '10px', width: 'fit-content', border: '1px solid var(--border-subtle)', marginBottom: '18px' }}>
+            <button
+              type="button"
+              className={`btn btn-ghost ${costMode === 'direct' ? 'btn-secondary' : ''}`}
+              onClick={() => {
+                setCostMode('direct');
+                handleChange('cost_manual_override_enabled', true);
+              }}
+              style={{ fontSize: '0.82rem', padding: '6px 14px' }}
+            >
+              💵 Direct Dollar Pricing ($ per article) — Recommended
+            </button>
+            <button
+              type="button"
+              className={`btn btn-ghost ${costMode === 'tokens' ? 'btn-secondary' : ''}`}
+              onClick={() => {
+                setCostMode('tokens');
+              }}
+              style={{ fontSize: '0.82rem', padding: '6px 14px' }}
+            >
+              ⚙️ Advanced: Token Rates ($ per 1M tokens)
+            </button>
+          </div>
+
+          {/* Mode 1: DIRECT DOLLAR PRICING (Default & Recommended) */}
+          {costMode === 'direct' && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%)',
+              border: '1px solid rgba(0, 240, 255, 0.35)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                <div style={{ flex: 1, minWidth: '280px' }}>
+                  <label className="form-label" style={{ fontSize: '0.88rem', color: '#fff', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <TrendingUp size={16} style={{ color: '#00f0ff' }} /> How much does 1 article cost? (USD $)
+                  </label>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', width: '220px' }}>
+                      <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '1.25rem', color: '#00f0ff', fontWeight: '700' }}>$</span>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        className="form-input"
+                        style={{
+                          paddingLeft: '32px',
+                          fontSize: '1.25rem',
+                          fontWeight: '700',
+                          color: '#00f0ff',
+                          background: 'rgba(0,0,0,0.5)',
+                          border: '1px solid rgba(0, 240, 255, 0.5)'
+                        }}
+                        value={formData.cost_fixed_per_post !== undefined ? formData.cost_fixed_per_post : 0.0035}
+                        onChange={e => {
+                          const val = e.target.value;
+                          handleChange('cost_fixed_per_post', val === '' ? '' : parseFloat(val));
+                          handleChange('cost_manual_override_enabled', true);
+                        }}
+                        placeholder="0.0035"
+                      />
+                    </div>
+
+                    <div className="badge badge-emerald" style={{ padding: '8px 14px', fontSize: '0.88rem', fontWeight: '600' }}>
+                      ≈ {formData.cost_currency === 'INR' 
+                          ? `₹${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * (formData.cost_exchange_rate || 87.5)).toFixed(2)} INR`
+                          : `$${((parseFloat(formData.cost_fixed_per_post) || 0.0035)).toFixed(4)} USD`}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="btn btn-primary"
+                      disabled={isSaving}
+                      style={{ padding: '8px 18px', fontSize: '0.84rem' }}
+                    >
+                      {savedSuccess ? <CheckCircle2 size={15} /> : <Save size={15} />}
+                      {isSaving ? 'Saving...' : savedSuccess ? 'Saved!' : 'Save This Cost'}
+                    </button>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Quick Presets:</span>
+                    {[
+                      { label: '$0.0010 (Ultra Low)', value: 0.0010 },
+                      { label: '$0.0025 (Economy)', value: 0.0025 },
+                      { label: '$0.0035 (Default)', value: 0.0035 },
+                      { label: '$0.0050 (Balanced)', value: 0.0050 },
+                      { label: '$0.0100 (Premium)', value: 0.0100 }
+                    ].map(preset => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => {
+                          handleChange('cost_fixed_per_post', preset.value);
+                          handleChange('cost_manual_override_enabled', true);
+                        }}
+                        className="badge"
+                        style={{
+                          cursor: 'pointer',
+                          background: parseFloat(formData.cost_fixed_per_post) === preset.value ? 'rgba(0, 240, 255, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+                          color: parseFloat(formData.cost_fixed_per_post) === preset.value ? '#00f0ff' : '#cbd5e1',
+                          border: parseFloat(formData.cost_fixed_per_post) === preset.value ? '1px solid #00f0ff' : '1px solid rgba(255, 255, 255, 0.1)',
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.74rem',
+                          fontWeight: parseFloat(formData.cost_fixed_per_post) === preset.value ? '700' : '500'
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ maxWidth: '340px', background: 'rgba(0,0,0,0.3)', padding: '14px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#00f0ff', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '700' }}>
+                    Zero Token Math Required
+                  </span>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.45, margin: 0 }}>
+                    Write your direct cost here. All topic runs, catalog cost estimates, and real-time dashboard badges will lock in this exact dollar figure.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mode 2: ADVANCED TOKEN RATES */}
+          {costMode === 'tokens' && (
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '12px',
+              padding: '18px',
+              marginBottom: '20px'
+            }}>
+              <div style={{ fontSize: '0.82rem', color: '#fbbf24', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Cpu size={15} /> Advanced Token Model Rates (Calculates per-post cost dynamically from token consumption)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Input Prompt Rate ($ per 1M tokens)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    value={formData.cost_prompt_per_1m !== undefined ? formData.cost_prompt_per_1m : 0.15}
+                    onChange={e => handleChange('cost_prompt_per_1m', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Industry benchmark: ~$0.15 / 1M input tokens</span>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Output Completion Rate ($ per 1M tokens)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    value={formData.cost_completion_per_1m !== undefined ? formData.cost_completion_per_1m : 0.60}
+                    onChange={e => handleChange('cost_completion_per_1m', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Industry benchmark: ~$0.60 / 1M output tokens</span>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Search Ingestion Rate ($ per query)</label>
+                  <input
+                    type="number"
+                    step="0.0005"
+                    className="form-input"
+                    value={formData.cost_per_search_query !== undefined ? formData.cost_per_search_query : 0.0015}
+                    onChange={e => handleChange('cost_per_search_query', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Live news query cost</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Currency and Exchange Controls */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '18px', marginBottom: '20px' }}>
-            {/* Preferred Currency */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Display Currency</span>
-                <span style={{ color: '#00f0ff', fontWeight: '700' }}>{formData.cost_currency}</span>
+                <span style={{ color: '#00f0ff', fontWeight: '700' }}>{formData.cost_currency || 'USD'}</span>
               </label>
               <select
                 className="form-input"
@@ -525,11 +735,10 @@ export default function SystemSettings({ settings, onSaveSettings }) {
                 <option value="GBP">GBP (£) - British Pound</option>
               </select>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Controls all cost pills, catalog run estimates, and breakdown modals across the platform.
+                Controls all cost pills, catalog run estimates, and breakdown modals.
               </span>
             </div>
 
-            {/* USD to INR Exchange Rate */}
             <div className="form-group">
               <label className="form-label">USD to INR Exchange Rate (₹)</label>
               <input
@@ -537,100 +746,12 @@ export default function SystemSettings({ settings, onSaveSettings }) {
                 step="0.1"
                 className="form-input"
                 value={formData.cost_exchange_rate || 87.5}
-                onChange={e => handleChange('cost_exchange_rate', parseFloat(e.target.value))}
+                onChange={e => handleChange('cost_exchange_rate', e.target.value === '' ? '' : parseFloat(e.target.value))}
               />
               <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                 Live exchange conversion multiplier (1 USD = ₹{formData.cost_exchange_rate || 87.5}).
               </span>
             </div>
-
-            {/* Prompt Token Pricing */}
-            <div className="form-group">
-              <label className="form-label">Input Prompt Rate ($ per 1M tokens)</label>
-              <input
-                type="number"
-                step="0.01"
-                className="form-input"
-                value={formData.cost_prompt_per_1m !== undefined ? formData.cost_prompt_per_1m : 0.15}
-                onChange={e => handleChange('cost_prompt_per_1m', parseFloat(e.target.value))}
-              />
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Industry benchmark: ~$0.15 / 1M input tokens.
-              </span>
-            </div>
-
-            {/* Completion Token Pricing */}
-            <div className="form-group">
-              <label className="form-label">Output Completion Rate ($ per 1M tokens)</label>
-              <input
-                type="number"
-                step="0.01"
-                className="form-input"
-                value={formData.cost_completion_per_1m !== undefined ? formData.cost_completion_per_1m : 0.60}
-                onChange={e => handleChange('cost_completion_per_1m', parseFloat(e.target.value))}
-              />
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-                Industry benchmark: ~$0.60 / 1M output tokens.
-              </span>
-            </div>
-          </div>
-
-          {/* Manual Fixed Cost Override Mode */}
-          <div style={{ 
-            background: 'rgba(255, 255, 255, 0.02)', 
-            padding: '18px', 
-            borderRadius: '10px', 
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-            marginBottom: '20px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <TrendingUp size={16} style={{ color: '#fbbf24' }} />
-                  <span style={{ fontWeight: '600', color: '#fff', fontSize: '0.92rem' }}>
-                    Client Presentation & Manual Benchmark Override
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  Lock in an exact demonstrated cost per post (e.g. $0.0035 or ₹0.31) to show clients and investors while maintaining realistic token breakdown proportions.
-                </p>
-              </div>
-
-              <label className="toggle-switch" title="Toggle Manual Cost Override">
-                <input
-                  type="checkbox"
-                  checked={formData.cost_manual_override_enabled || false}
-                  onChange={e => handleChange('cost_manual_override_enabled', e.target.checked)}
-                />
-                <span className="slider"></span>
-              </label>
-            </div>
-
-            {formData.cost_manual_override_enabled && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: '220px' }}>
-                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Fixed Benchmark Cost per Post (USD $)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      className="form-input"
-                      value={formData.cost_fixed_per_post !== undefined ? formData.cost_fixed_per_post : 0.0035}
-                      onChange={e => handleChange('cost_fixed_per_post', parseFloat(e.target.value))}
-                      style={{ fontWeight: '700', color: '#00f0ff' }}
-                    />
-                  </div>
-                </div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', maxWidth: '380px' }}>
-                  Equivalent in {formData.cost_currency || 'USD'}: <strong style={{ color: '#34d399' }}>
-                    {formData.cost_currency === 'INR' 
-                      ? `₹${((formData.cost_fixed_per_post || 0.0035) * (formData.cost_exchange_rate || 87.5)).toFixed(2)} INR`
-                      : `$${(formData.cost_fixed_per_post || 0.0035).toFixed(4)} USD`
-                    }
-                  </strong> per generated article.
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Live Simulator Preview */}
@@ -648,24 +769,24 @@ export default function SystemSettings({ settings, onSaveSettings }) {
                 <span style={{ color: 'var(--text-muted)' }}>1 Article Run: </span>
                 <strong style={{ color: '#00f0ff' }}>
                   {formData.cost_currency === 'INR' 
-                    ? `₹${((formData.cost_fixed_per_post || 0.0035) * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
-                    : `$${(formData.cost_fixed_per_post || 0.0035).toFixed(4)}`}
+                    ? `₹${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
+                    : `$${((parseFloat(formData.cost_fixed_per_post) || 0.0035)).toFixed(4)}`}
                 </strong>
               </div>
               <div>
-                <span style={{ color: 'var(--text-muted)' }}>Full Catalog Run (~5 topics): </span>
+                <span style={{ color: 'var(--text-muted)' }}>Full Catalog Run (~74 topics): </span>
                 <strong style={{ color: '#818cf8' }}>
                   {formData.cost_currency === 'INR' 
-                    ? `₹${((formData.cost_fixed_per_post || 0.0035) * 5 * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
-                    : `$${((formData.cost_fixed_per_post || 0.0035) * 5).toFixed(4)}`}
+                    ? `₹${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * 74 * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
+                    : `$${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * 74).toFixed(4)}`}
                 </strong>
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)' }}>Monthly Autonomous (600 articles): </span>
                 <strong style={{ color: '#34d399' }}>
                   {formData.cost_currency === 'INR' 
-                    ? `₹${((formData.cost_fixed_per_post || 0.0035) * 600 * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
-                    : `$${((formData.cost_fixed_per_post || 0.0035) * 600).toFixed(2)}`}
+                    ? `₹${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * 600 * (formData.cost_exchange_rate || 87.5)).toFixed(2)}` 
+                    : `$${(((parseFloat(formData.cost_fixed_per_post) || 0.0035)) * 600).toFixed(2)}`}
                 </strong>
               </div>
               <div>
@@ -673,6 +794,23 @@ export default function SystemSettings({ settings, onSaveSettings }) {
                 <strong style={{ color: '#fbbf24' }}>99.8% ($45/article saved)</strong>
               </div>
             </div>
+          </div>
+
+          {/* Card Footer Save Button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginTop: '18px', flexWrap: 'wrap', gap: '12px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              Target cost is stored and locked in across all dashboard cost pills, topic cards, and API calculations.
+            </span>
+            <button 
+              type="button" 
+              onClick={handleSave} 
+              className="btn btn-primary"
+              disabled={isSaving}
+              style={{ padding: '8px 22px', fontSize: '0.86rem' }}
+            >
+              {savedSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
+              {isSaving ? 'Saving Changes...' : savedSuccess ? 'Pricing Settings Saved!' : 'Save Pricing & Settings'}
+            </button>
           </div>
         </div>
 
@@ -722,6 +860,52 @@ export default function SystemSettings({ settings, onSaveSettings }) {
               </span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Sticky Bottom Save Actions Bar - Always visible regardless of scroll position */}
+      <div style={{
+        position: 'sticky',
+        bottom: '16px',
+        zIndex: 50,
+        background: 'rgba(15, 23, 42, 0.95)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(0, 240, 255, 0.4)',
+        borderRadius: '12px',
+        padding: '12px 24px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.7)',
+        marginTop: '16px',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Shield size={16} style={{ color: '#00f0ff' }} />
+          <span style={{ fontSize: '0.85rem', color: '#e2e8f0', fontWeight: '600' }}>
+            System Settings & Pricing Configuration
+          </span>
+          <span className="badge badge-cyan" style={{ fontSize: '0.72rem' }}>
+            Krish Goswami
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {savedSuccess && (
+            <span style={{ color: '#34d399', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
+              <CheckCircle2 size={16} /> Changes saved successfully!
+            </span>
+          )}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={isSaving}
+            style={{ padding: '8px 24px', fontSize: '0.88rem' }}
+          >
+            {savedSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
+            {isSaving ? 'Saving Changes...' : savedSuccess ? 'Saved!' : 'Save All Settings'}
+          </button>
         </div>
       </div>
     </form>

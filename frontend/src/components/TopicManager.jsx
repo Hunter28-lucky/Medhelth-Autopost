@@ -25,8 +25,7 @@ export default function TopicManager({
   const symbols = { USD: '$', INR: '₹', EUR: '€', GBP: '£' };
   const symbol = symbols[currency] || '$';
   const exchangeRate = settings?.cost_exchange_rate || 87.5;
-  const isOverride = settings?.cost_manual_override_enabled;
-  const baseCostUsd = isOverride ? (settings?.cost_fixed_per_post || 0.0035) : 0.0035;
+  const baseCostUsd = (settings?.cost_fixed_per_post !== undefined && settings.cost_fixed_per_post > 0) ? settings.cost_fixed_per_post : 0.0035;
 
   const formatCost = (usdVal) => {
     let rate = 1.0;

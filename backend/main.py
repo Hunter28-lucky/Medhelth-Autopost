@@ -1127,6 +1127,8 @@ async def update_settings(payload: SettingsUpdate):
         settings.COST_MANUAL_OVERRIDE_ENABLED = bool(payload.cost_manual_override_enabled)
     if payload.cost_fixed_per_post is not None and payload.cost_fixed_per_post >= 0:
         settings.COST_FIXED_PER_POST = float(payload.cost_fixed_per_post)
+        if payload.cost_manual_override_enabled is None:
+            settings.COST_MANUAL_OVERRIDE_ENABLED = True
 
     return await get_settings()
 
