@@ -52,6 +52,50 @@ class FreeOnlineSearchProvider(SearchProvider):
             domain_blocklist=domain_blocklist
         )
 
+    @staticmethod
+    def _is_hr_workforce_query(query: str) -> bool:
+        """Determines if a query is within the HR, People, and Workforce Management domain."""
+        q_lower = query.lower()
+        # Strict exclusion for clinical/medical queries
+        medical_indicators = {
+            "cancer", "clinical", "patient", "cardiology", "oncology", "endoscopic",
+            "surgery", "tumor", "biomarker", "chemotherapy", "pathology", "hospital",
+            "physician", "disease", "cardiovascular", "neurosurgery", "biologics"
+        }
+        tokens = set(re.split(r'\W+', q_lower))
+        if any(med in tokens or med in q_lower for med in medical_indicators):
+            return False
+
+        hr_keywords = {
+            "hr", "human resources", "employee", "employees", "employer", "workforce", "workplace",
+            "hiring", "recruitment", "recruiting", "onboarding", "talent", "payroll", "compensation",
+            "benefits", "termination", "remote work", "hybrid work", "attendance", "absenteeism",
+            "performance management", "applicant tracking", "ats", "staffing", "labor", "labour",
+            "employment", "job", "career", "flsa", "eeoc", "osha", "peo", "rpo", "retention",
+            "turnover", "severance", "headcount", "offboarding", "leave management", "work-life",
+            "burnout", "corporate advisory", "woman leaders", "leadership", "diversity", "inclusion",
+            "dei", "pre employment screening", "background screening", "employment verification",
+            "hrms", "hcm", "learning management", "allocation", "pension", "retirement", "401k",
+            "administration management", "applicant tracking systems", "change management",
+            "compensation management", "corporate advisory", "diversity and inclusion management",
+            "employee communication", "employee engagement", "employee expense management",
+            "employee experience management", "employee health management", "employee learning management",
+            "employee monitoring", "employee performance management", "employee satisfaction management",
+            "employee training", "employee wellbeing", "employment law", "employment verification",
+            "financial wellness", "hiring and onboarding", "hr reporting", "human capital management",
+            "human resource management system", "human resources compliance", "labor allocation",
+            "labour management", "payroll management", "payroll tax", "position management",
+            "pre employment screening", "professional employer organization", "recruitment process outsourcing",
+            "time and attendance management"
+        }
+        for kw in hr_keywords:
+            if " " in kw:
+                if kw in q_lower:
+                    return True
+            elif kw in tokens:
+                return True
+        return False
+
     def _sync_search(
         self,
         queries: List[str],
@@ -61,11 +105,9 @@ class FreeOnlineSearchProvider(SearchProvider):
         domain_blocklist: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Executes multi-source live clinical search across queries:
-        1. Live NCBI PubMed Clinical E-Utilities (real peer-reviewed studies & trials)
-        2. Top Peer-Reviewed Medical Journal Feeds (Nature, PLOS, BMC)
-        3. Europe PMC Open Access API
-        4. DuckDuckGo Breaking News (filtered against portal/directory pages)
+        Executes multi-source domain-aware live search across queries:
+        - For HR/Workforce queries: Targeted HR news (SHRM, HR Dive, WorkLife, Forbes HR, DDG News).
+        - For Medical/Clinical queries: NCBI PubMed E-Utilities, Medical Journal Feeds (Nature, PLOS, BMC), Europe PMC, DDG Clinical.
         """
         results: List[Dict[str, Any]] = []
         seen_urls = set()
@@ -74,42 +116,60 @@ class FreeOnlineSearchProvider(SearchProvider):
             if len(results) >= max_results * 2:
                 break
 
-            # 1. Live NCBI PubMed Clinical E-Utilities (Top clinical priority)
-            pubmed_results = self._search_pubmed_clinical(q, max_per_query=max_results)
-            for r in pubmed_results:
-                if r["url"] not in seen_urls:
-                    seen_urls.add(r["url"])
-                    results.append(r)
+            is_hr = self._is_hr_workforce_query(q)
 
-            # 2. Live Top Medical Journal Feeds
-            if len(results) < max_results:
-                feed_results = self._search_top_journal_feeds(q, max_per_query=max_results)
-                for r in feed_results:
+            if is_hr:
+                # 1. Top HR / Workforce News from DuckDuckGo
+                ddg_hr = self._search_duckduckgo_news(q, max_per_query=max_results, is_hr=True)
+                for r in ddg_hr:
                     if r["url"] not in seen_urls:
                         seen_urls.add(r["url"])
                         results.append(r)
 
-            # 3. Live Europe PMC Peer-Reviewed Articles Search
-            if len(results) < max_results:
-                pmc_results = self._search_europe_pmc(q, max_per_query=max_results)
-                for r in pmc_results:
+                # 2. Targeted HR authority publications if more needed
+                if len(results) < max_results:
+                    targeted_hr = self._search_duckduckgo_targeted_hr(q, max_per_query=max_results)
+                    for r in targeted_hr:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
+            else:
+                # 1. Live NCBI PubMed Clinical E-Utilities (Top clinical priority)
+                pubmed_results = self._search_pubmed_clinical(q, max_per_query=max_results)
+                for r in pubmed_results:
                     if r["url"] not in seen_urls:
                         seen_urls.add(r["url"])
                         results.append(r)
 
-            # 4. Filtered DuckDuckGo News Search
-            if len(results) < max_results:
-                ddg_results = self._search_duckduckgo_news(q, max_per_query=max_results)
-                for r in ddg_results:
-                    if r["url"] not in seen_urls:
-                        seen_urls.add(r["url"])
-                        results.append(r)
+                # 2. Live Top Medical Journal Feeds
+                if len(results) < max_results:
+                    feed_results = self._search_top_journal_feeds(q, max_per_query=max_results)
+                    for r in feed_results:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
+
+                # 3. Live Europe PMC Peer-Reviewed Articles Search
+                if len(results) < max_results:
+                    pmc_results = self._search_europe_pmc(q, max_per_query=max_results)
+                    for r in pmc_results:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
+
+                # 4. Filtered DuckDuckGo News Search
+                if len(results) < max_results:
+                    ddg_results = self._search_duckduckgo_news(q, max_per_query=max_results, is_hr=False)
+                    for r in ddg_results:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
 
         # Apply domain whitelisting and blocklisting
         filtered = self.filter_domains(results, domain_whitelist, domain_blocklist)
 
         if not filtered and results:
-            logger.info("Whitelist filtered all results; retaining top verified clinical results")
+            logger.info("Whitelist filtered all results; retaining top verified results")
             filtered = results
 
         return filtered[:max_results]
@@ -333,7 +393,19 @@ class FreeOnlineSearchProvider(SearchProvider):
 
         return items
 
-    def _search_duckduckgo_news(self, query: str, max_per_query: int = 4) -> List[Dict[str, Any]]:
+    def _search_duckduckgo_targeted_hr(self, query: str, max_per_query: int = 4) -> List[Dict[str, Any]]:
+        """Queries DuckDuckGo specifically across top authority HR and workforce news outlets."""
+        clean_kw = re.sub(r'[^a-zA-Z0-9\s]', '', query).strip()
+        targeted_q = f'"{clean_kw}" site:shrm.org OR site:hrdive.com OR site:hrexecutive.com OR site:worklife.news OR site:personneltoday.com OR site:forbes.com'
+        return self._search_duckduckgo_news(targeted_q, max_per_query=max_per_query, is_hr=True, raw_query=True)
+
+    def _search_duckduckgo_news(
+        self,
+        query: str,
+        max_per_query: int = 4,
+        is_hr: bool = False,
+        raw_query: bool = False
+    ) -> List[Dict[str, Any]]:
         """
         Scrapes live breaking news search results from DuckDuckGo HTML endpoint,
         filtering out generic directory, portal, and login pages.
@@ -341,7 +413,15 @@ class FreeOnlineSearchProvider(SearchProvider):
         items: List[Dict[str, Any]] = []
         url = "https://html.duckduckgo.com/html/"
         current_year = datetime.datetime.utcnow().year
-        data = {"q": f'"{query}" clinical trial OR FDA approval OR study {current_year}'}
+
+        if raw_query:
+            search_query_str = f"{query} {current_year}"
+        elif is_hr or self._is_hr_workforce_query(query):
+            search_query_str = f'"{query}" (HR OR workplace OR "human resources" OR workforce) {current_year}'
+        else:
+            search_query_str = f'"{query}" clinical trial OR FDA approval OR study {current_year}'
+
+        data = {"q": search_query_str}
 
         # Directories and non-article paths to strictly exclude
         blocked_paths = [

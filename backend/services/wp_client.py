@@ -29,6 +29,30 @@ WP_KNOWN_CATEGORIES = [
 
 WP_LOOKUP = {c.lower(): c for c in WP_KNOWN_CATEGORIES}
 
+# The HR Review Verified Categories
+HR_KNOWN_CATEGORIES = [
+    "Administration Management", "AI in HR", "Applicant Tracking Systems", "Blogs",
+    "Change Management", "Compensation Management", "Corporate Advisory",
+    "Diversity and Inclusion Management", "editors pick", "Employee Benefits",
+    "Employee Communication", "Employee Engagement", "Employee Expense Management",
+    "Employee Experience Management", "Employee Health Management", "Employee Learning Management",
+    "Employee Monitoring", "Employee Onboarding", "Employee Performance Management",
+    "Employee Satisfaction Management", "Employee Training", "Employee Wellbeing",
+    "Employment Law", "Employment Verification", "Featured", "Financial Wellness",
+    "Headline News", "Hiring", "Hiring and Onboarding", "Hot this week", "HR Reporting",
+    "Human Capital Management", "Human Resource Management System", "Human Resources Compliance",
+    "Insights", "Labor Allocation", "Labour Management", "Must Read", "News",
+    "Payroll Management", "Payroll Tax", "Performance Management", "popular",
+    "Position Management", "Pre Employment Screening", "Press Release",
+    "Professional Employer Organization", "Profile", "Recruitment",
+    "Recruitment Process Outsourcing", "Remote Work", "Retirement",
+    "Talent Management", "Time and Attendance Management", "Top Stories",
+    "Trending", "Uncategorized", "Woman Leaders", "Workforce Management",
+    "Xclusive Articles"
+]
+
+HR_LOOKUP = {c.lower(): c for c in HR_KNOWN_CATEGORIES}
+
 CATEGORY_SYNONYMS = {
     "ai in diagnostics": "Diagnostics",
     "cardiology breakthroughs": "Cardiovascular",
@@ -56,6 +80,7 @@ def normalize_categories_for_wp(categories: Union[List[str], str, None]) -> List
     Normalizes candidate topic names / category strings to match the exact
     taxonomical categories verified in WordPress. Completely prevents 500 errors
     caused by unmapped categories in the WordPress database.
+    Supports both MedHealth Times and The HR Review category taxonomies.
     """
     if not categories:
         return ["News"]
@@ -74,6 +99,9 @@ def normalize_categories_for_wp(categories: Union[List[str], str, None]) -> List
         low = cleaned.lower()
         if low in CATEGORY_SYNONYMS:
             result.append(CATEGORY_SYNONYMS[low])
+            continue
+        if low in HR_LOOKUP:
+            result.append(HR_LOOKUP[low])
             continue
         if low in WP_LOOKUP:
             result.append(WP_LOOKUP[low])

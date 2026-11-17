@@ -5,8 +5,6 @@ import logging
 from typing import List, Tuple, Optional, Dict, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from bs4 import BeautifulSoup
 
 from backend.models import GeneratedPost, ResearchArticle
@@ -36,14 +34,15 @@ class DeduplicationEngine:
         self,
         session: AsyncSession,
         candidate_urls: List[str],
-        candidate_titles: List[str]
+        candidate_titles: List[str],
+        site_id: Optional[int] = None
     ) -> Tuple[bool, Optional[str]]:
         """
         Pre-generation duplicate check:
-        1. Checks if candidate research URL hashes have already been used in an existing post.
-        2. Checks if headline fuzzy similarity to existing post titles exceeds 85%.
+        1. Checks if candidate research URL hashes have already been used in an existing post for this site.
+        2. Checks if headline fuzzy similarity to existing post titles exceeds threshold.
         """
-        # 1. URL Check
+        # 1. URL Check (scoped to site)
         url_hashes = [hashlib.md5(u.strip().lower().encode("utf-8")).hexdigest() for u in candidate_urls if u]
         if url_hashes:
             stmt = (
@@ -51,25 +50,29 @@ class DeduplicationEngine:
                 .join(GeneratedPost, ResearchArticle.run_id == GeneratedPost.run_id)
                 .where(ResearchArticle.url_hash.in_(url_hashes))
             )
+            if site_id is not None:
+                stmt = stmt.where(ResearchArticle.site_id == site_id)
             result = await session.execute(stmt)
             existing_article = result.scalars().first()
             if existing_article:
                 return True, f"Research URL already covered in past post ID {existing_article.id} ('{existing_article.title}')"
 
-        # 2. Headline Similarity Check
+        # 2. Headline Similarity Check (scoped to site)
         post_stmt = select(GeneratedPost.id, GeneratedPost.title).where(GeneratedPost.status != "REJECTED")
+        if site_id is not None:
+            post_stmt = post_stmt.where(GeneratedPost.site_id == site_id)
         posts_result = await session.execute(post_stmt)
         existing_posts = posts_result.all()
 
         for c_title in candidate_titles:
             c_norm = c_title.lower().strip()
-            c_tokens = set(w for w in re.split(r'\W+', c_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial"])
+            c_tokens = set(w for w in re.split(r'\W+', c_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial", "report", "news"])
             
             for p_id, p_title in existing_posts:
                 if not p_title:
                     continue
                 p_norm = p_title.lower().strip()
-                p_tokens = set(w for w in re.split(r'\W+', p_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial"])
+                p_tokens = set(w for w in re.split(r'\W+', p_norm) if len(w) > 3 and w not in ["with", "from", "into", "after", "over", "under", "about", "study", "clinical", "trial", "report", "news"])
                 
                 # SequenceMatcher similarity
                 ratio = difflib.SequenceMatcher(None, c_norm, p_norm).ratio()
@@ -88,11 +91,12 @@ class DeduplicationEngine:
         self,
         session: AsyncSession,
         candidate_body_html: str,
-        threshold: Optional[float] = None
+        threshold: Optional[float] = None,
+        site_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Post-generation similarity check:
-        Compares the candidate draft body against ALL historical posts using a composite of:
+        Compares the candidate draft body against historical posts strictly for this site using:
         - TF-IDF unigram/bigram cosine similarity
         - Character/Token sequence overlap ratio
         
@@ -119,10 +123,12 @@ class DeduplicationEngine:
                 "status": "PASSED"
             }
 
-        # Query all historical posts
+        # Query all historical posts strictly for this site
         stmt = select(GeneratedPost.id, GeneratedPost.title, GeneratedPost.body_html).where(
             GeneratedPost.status != "REJECTED"
         )
+        if site_id is not None:
+            stmt = stmt.where(GeneratedPost.site_id == site_id)
         result = await session.execute(stmt)
         historical_posts = result.all()
 
@@ -159,6 +165,8 @@ class DeduplicationEngine:
         all_docs = corpus + [candidate_text]
 
         try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
             vectorizer = TfidfVectorizer(
                 stop_words="english",
                 ngram_range=(1, 2),

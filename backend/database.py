@@ -59,6 +59,14 @@ def _migrate_sqlite_schema(sync_conn):
         except Exception:
             pass
 
+    # Ensure topic names are unique PER SITE (not globally across different websites)
+    try:
+        cursor.execute("DROP INDEX IF EXISTS ix_topics_name;")
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_topics_name ON topics (name);")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_topics_site_id_name ON topics (site_id, name);")
+    except Exception:
+        pass
+
     # Auto-repair legacy DUPLICATE_FLAGGED drafts to PENDING_REVIEW and normalize categories
     try:
         from backend.services.wp_client import normalize_categories_for_wp

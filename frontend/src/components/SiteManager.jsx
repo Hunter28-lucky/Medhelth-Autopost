@@ -564,6 +564,7 @@ export default function SiteManager({
                       defaultValue=""
                     >
                       <option value="" disabled>+ Add Presets...</option>
+                      <option value="hr_workforce">HR & Workforce (6)</option>
                       <option value="tech_ai">AI & Tech (5)</option>
                       <option value="finance_crypto">Finance & Crypto (5)</option>
                       <option value="clean_energy">Clean Energy (5)</option>
@@ -687,6 +688,7 @@ export default function SiteManager({
                   onChange={e => setFormData({ ...formData, preset: e.target.value })}
                 >
                   <option value="none">None (I will configure topics manually)</option>
+                  <option value="hr_workforce">Human Resources & Workforce (6 topics)</option>
                   <option value="tech_ai">Artificial Intelligence & Tech (5 topics)</option>
                   <option value="finance_crypto">Finance, DeFi & Crypto (5 topics)</option>
                   <option value="clean_energy">Clean Energy & Sustainability (5 topics)</option>

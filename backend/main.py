@@ -68,6 +68,27 @@ async def seed_initial_data():
             await session.commit()
             logger.info("Seeded Primary Managed Site #1: MedHealth Times.")
 
+        # 1b. Ensure Managed Site #2 (The HR Review) exists
+        hr_site_res = await session.execute(select(ManagedSite).where(ManagedSite.slug == "thehrreview"))
+        hr_site = hr_site_res.scalars().first()
+        if not hr_site:
+            hr_site = ManagedSite(
+                id=2,
+                name="The HR Review",
+                slug="thehrreview",
+                wp_url="https://thehrreview.com",
+                wp_api_key=settings.WORDPRESS_API_KEY,
+                description="Strategic Human Resources, Workplace Leadership, Talent Management & HR Technology Publication",
+                is_active=True,
+                auto_push_to_wp=False,
+                is_scheduler_enabled=False,
+                schedule_interval_hours=6
+            )
+            session.add(hr_site)
+            await session.commit()
+            await session.refresh(hr_site)
+            logger.info(f"Seeded Managed Site #{hr_site.id}: The HR Review.")
+
         # 2. Backfill existing records missing site_id
         await session.execute(update(Topic).where(Topic.site_id == None).values(site_id=1))
         await session.execute(update(ContentRule).where(ContentRule.site_id == None).values(site_id=1))
@@ -152,6 +173,49 @@ async def seed_initial_data():
             )
             session.add(default_rule)
             logger.info("Seeded default Content Rules for Site #1.")
+
+        # 5. Check content rules for Site #2 (The HR Review)
+        if hr_site:
+            hr_rule_res = await session.execute(select(ContentRule).where(ContentRule.site_id == hr_site.id))
+            if not hr_rule_res.scalars().first():
+                hr_rule = ContentRule(
+                    site_id=hr_site.id,
+                    name="Publishing Rules for The HR Review",
+                    is_active=True,
+                    tone="Authoritative, Strategic & Professional",
+                    reading_level="HR Executives, People Leaders & Business Professionals",
+                    word_count_min=450,
+                    word_count_max=520,
+                    heading_structure="<h6><strong>Heading Title</strong></h6>",
+                    include_takeaways=False,
+                    include_faq=False,
+                    include_disclaimer=False,
+                    include_quotes=False,
+                    include_sources=True,
+                    disclaimer_text="Disclaimer: This article on The HR Review is for informational and educational purposes only and does not constitute formal legal, financial, or human resources advisory. Organizations should consult licensed employment counsel or qualified HR consultants for specific corporate decisions.",
+                    style_guide_text="Maintain authoritative, research-backed HR journalism. Focus on human capital strategy, employment law compliance, talent acquisition, workplace technology, employee experience, and organizational development. Cite reputable workforce data, industry surveys, and real-world enterprise practices.",
+                    auto_push_to_wp=False,
+                    enforce_yoast_green=True
+                )
+                session.add(hr_rule)
+                logger.info("Seeded default Content Rules for The HR Review (Site #2).")
+
+            # 6. Check topics for Site #2 (The HR Review)
+            hr_topics_count = (await session.execute(select(func.count(Topic.id)).where(Topic.site_id == hr_site.id))).scalar() or 0
+            if hr_topics_count == 0:
+                from backend.seed_hr_categories import HR_CATEGORIES_METADATA, HR_DOMAINS
+                for name, meta in HR_CATEGORIES_METADATA.items():
+                    t = Topic(
+                        site_id=hr_site.id,
+                        name=name,
+                        keywords=meta["keywords"],
+                        weight=meta["weight"],
+                        is_active=True,
+                        domain_whitelist=HR_DOMAINS,
+                        lookback_days=7
+                    )
+                    session.add(t)
+                logger.info(f"Seeded {len(HR_CATEGORIES_METADATA)} default HR & workforce categories for The HR Review.")
 
         await session.commit()
 
@@ -459,6 +523,14 @@ async def seed_site_topic_presets(
             ("Mental Resilience & Mindfulness", ["neuroplasticity mindfulness practice", "stress cortisol biofeedback", "vagus nerve stimulation"], 7),
             ("Physical Recovery & Mobility", ["fascia release mobility training", "cold thermogenesis recovery", "zone 2 cardio mitochondrial density"], 7),
             ("Biohacking & Preventative Wellness", ["biological age epigenetic clock", "continuous biomarker tracking", "mitochondrial biogenesis wellness"], 9)
+        ],
+        "hr_workforce": [
+            ("AI in HR", ["artificial intelligence in human resources", "generative AI workforce automation", "AI recruiting talent intelligence"], 10),
+            ("Talent Management", ["strategic talent management", "high-potential talent development", "succession planning talent pipeline"], 10),
+            ("Employee Engagement", ["employee engagement initiatives", "workforce motivation strategies", "employee pulse survey metrics"], 9),
+            ("Applicant Tracking Systems", ["applicant tracking systems ATS", "candidate management software", "recruiting ATS automation"], 9),
+            ("Workforce Management", ["enterprise workforce management WFM", "workforce optimization software", "labor forecasting demand"], 10),
+            ("Compensation Management", ["executive compensation management", "salary benchmarking structures", "employee compensation packages"], 9)
         ]
     }
 

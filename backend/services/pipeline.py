@@ -114,15 +114,32 @@ class PublishingPipeline:
                 excluded_titles=historical_titles
             )
 
-            # If all primary keyword stories were already covered, rotate to distinct clinical sub-niches
+            # Determine if this run belongs to an HR/workforce publication or topic
+            from backend.services.free_search_provider import FreeOnlineSearchProvider
+            is_hr_site = (
+                (site and "thehrreview" in (site.slug or "").lower()) or
+                (site and "hr" in (site.name or "").lower()) or
+                FreeOnlineSearchProvider._is_hr_workforce_query(topic.name)
+            )
+
+            # If all primary keyword stories were already covered, rotate to distinct sub-niches
             if not research_articles:
-                sub_niches = [
-                    f"{topic.name} clinical trial milestone",
-                    f"{topic.name} computer aided detection multicenter",
-                    f"{topic.name} diagnostic accuracy patient outcomes",
-                    f"{topic.name} real-time procedural safety evaluation",
-                    f"{topic.name} endoscopic screening artificial intelligence"
-                ]
+                if is_hr_site:
+                    sub_niches = [
+                        f"{topic.name} workplace trends executive insights",
+                        f"{topic.name} talent strategy organizational impact",
+                        f"{topic.name} enterprise policy adoption",
+                        f"{topic.name} employee experience best practices",
+                        f"{topic.name} human resources leadership analysis"
+                    ]
+                else:
+                    sub_niches = [
+                        f"{topic.name} clinical trial milestone",
+                        f"{topic.name} computer aided detection multicenter",
+                        f"{topic.name} diagnostic accuracy patient outcomes",
+                        f"{topic.name} real-time procedural safety evaluation",
+                        f"{topic.name} endoscopic screening artificial intelligence"
+                    ]
                 for niche in sub_niches:
                     log_step("RESEARCH_SUB_NICHE", f"Primary stories covered. Pivoting to fresh sub-niche: '{niche}'...")
                     research_articles = await self.research_engine.execute_research(
@@ -148,7 +165,8 @@ class PublishingPipeline:
                 await session.commit()
                 return {"success": False, "run_id": run_id, "message": msg}
 
-            log_step("RESEARCH_SUCCESS", f"Retrieved {len(research_articles)} fresh, distinct articles with verified clinical findings.")
+            domain_desc = "human capital insights" if is_hr_site else "verified clinical findings"
+            log_step("RESEARCH_SUCCESS", f"Retrieved {len(research_articles)} fresh, distinct articles with {domain_desc}.")
 
             # Save Research Articles in DB
             for art in research_articles:
@@ -168,11 +186,11 @@ class PublishingPipeline:
                 session.add(db_art)
             await session.commit()
 
-            # 5. Pre-Generation Deduplication Check
+            # 5. Pre-Generation Deduplication Check (strictly isolated to this site)
             candidate_urls = [a["url"] for a in research_articles]
             candidate_titles = [a["title"] for a in research_articles]
             is_dup, dup_reason = await self.dedup_engine.check_pre_generation_duplicate(
-                session, candidate_urls, candidate_titles
+                session, candidate_urls, candidate_titles, site_id=site_id
             )
 
             if is_dup and not force_fresh_search:
@@ -191,22 +209,27 @@ class PublishingPipeline:
             log_step("AI_GENERATION", f"Synthesizing draft via {provider_desc}. Target words: {rules.word_count_min}-{rules.word_count_max}...")
             re_angle_directive = None
             if is_dup:
-                re_angle_directive = "This story has had prior coverage. You MUST adopt a fresh, distinct clinical perspective focusing on patient accessibility, health economics, and ongoing longitudinal safety questions."
+                if is_hr_site:
+                    re_angle_directive = "This story has had prior coverage. You MUST adopt a fresh, distinct perspective focusing on workforce culture, change management, employee satisfaction, and strategic enterprise impact."
+                else:
+                    re_angle_directive = "This story has had prior coverage. You MUST adopt a fresh, distinct clinical perspective focusing on patient accessibility, health economics, and ongoing longitudinal safety questions."
 
             draft_data = await self.generator.generate_draft(
                 topic_name=topic.name,
                 research_articles=research_articles,
                 rules=rules,
-                deviation_angle_instruction=re_angle_directive
+                deviation_angle_instruction=re_angle_directive,
+                site_name=site_name
             )
             log_step("AI_GENERATED", f"Draft generated: '{draft_data.get('title')}' ({len(draft_data.get('body_html', '').split())} words)")
 
-            # 7. Post-Generation Similarity Check
-            log_step("POST_DEDUP", "Comparing draft content against all historical posts using TF-IDF cosine similarity...")
+            # 7. Post-Generation Similarity Check (strictly isolated to this site)
+            log_step("POST_DEDUP", f"Comparing draft content against historical posts on '{site_name}' using TF-IDF cosine similarity...")
             similarity_result = await self.dedup_engine.check_post_generation_similarity(
                 session,
                 draft_data.get("body_html", ""),
-                threshold=settings.DEDUP_SIMILARITY_THRESHOLD
+                threshold=settings.DEDUP_SIMILARITY_THRESHOLD,
+                site_id=site_id
             )
 
             sim_score = similarity_result["max_score"]
@@ -216,24 +239,29 @@ class PublishingPipeline:
             if similarity_result["is_duplicate"]:
                 log_step("SIMILARITY_WARNING", f"Draft similarity score is {sim_score*100:.1f}%, exceeding threshold {settings.DEDUP_SIMILARITY_THRESHOLD*100:.0f}%. Regenerating with forced angle shift...", "warning")
                 # Attempt regeneration with explicit pivot directive
-                pivot_prompt = f"CRITICAL DEDUPLICATION OVERRIDE: Previous draft had {sim_score*100:.1f}% similarity to existing post #{matched_id}. Re-frame entirely: focus strictly on cellular mechanisms, biomarker efficacy, and clinician practical adoption."
+                if is_hr_site:
+                    pivot_prompt = f"CRITICAL DEDUPLICATION OVERRIDE: Previous draft had {sim_score*100:.1f}% similarity to existing post #{matched_id}. Re-frame entirely: focus strictly on organizational agility, modern leadership execution, and operational talent metrics."
+                else:
+                    pivot_prompt = f"CRITICAL DEDUPLICATION OVERRIDE: Previous draft had {sim_score*100:.1f}% similarity to existing post #{matched_id}. Re-frame entirely: focus strictly on cellular mechanisms, biomarker efficacy, and clinician practical adoption."
                 draft_data = await self.generator.generate_draft(
                     topic_name=topic.name,
                     research_articles=research_articles,
                     rules=rules,
-                    deviation_angle_instruction=pivot_prompt
+                    deviation_angle_instruction=pivot_prompt,
+                    site_name=site_name
                 )
                 # Re-evaluate similarity
                 second_sim = await self.dedup_engine.check_post_generation_similarity(
                     session,
                     draft_data.get("body_html", ""),
-                    threshold=settings.DEDUP_SIMILARITY_THRESHOLD
+                    threshold=settings.DEDUP_SIMILARITY_THRESHOLD,
+                    site_id=site_id
                 )
                 sim_score = second_sim["max_score"]
                 sim_status = "RE_ANGLED" if not second_sim["is_duplicate"] else "EXCEEDED_THRESHOLD"
                 log_step("RE_ANGLED", f"Regenerated draft similarity: {sim_score*100:.1f}% (Status: {sim_status})")
             else:
-                log_step("SIMILARITY_PASSED", f"Draft uniqueness confirmed: Max historical similarity is {sim_score*100:.1f}% (Threshold: {settings.DEDUP_SIMILARITY_THRESHOLD*100:.0f}%).")
+                log_step("SIMILARITY_PASSED", f"Draft uniqueness confirmed: Max historical similarity on '{site_name}' is {sim_score*100:.1f}% (Threshold: {settings.DEDUP_SIMILARITY_THRESHOLD*100:.0f}%).")
 
             # 8. Yoast SEO Compliance Channel & Self-Healing Auto-Fix
             log_step("YOAST_SEO_AUDIT", "Running draft through Yoast SEO 28.4 compliance channel (SEO & Readability)...")
