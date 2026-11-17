@@ -307,7 +307,7 @@ async def list_managed_sites(db: AsyncSession = Depends(get_db)):
         t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == s.id))).scalar() or 0
         d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
         p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
-        masked_key = (s.wp_api_key[:3] + "..." + s.wp_api_key[-4:]) if len(s.wp_api_key) > 7 else "••••••••"
+        masked_key = (s.wp_api_key[:3] + "..." + s.wp_api_key[-4:]) if s.wp_api_key and len(s.wp_api_key) > 7 else "••••••••"
         
         response.append(SiteResponse(
             id=s.id,

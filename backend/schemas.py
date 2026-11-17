@@ -41,8 +41,8 @@ class SiteResponse(BaseModel):
     topics_count: int = 0
     drafts_count: int = 0
     published_count: int = 0
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -81,8 +81,8 @@ class TopicUpdate(BaseModel):
 class TopicResponse(TopicBase):
     id: int
     site_name: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -144,7 +144,7 @@ class ContentRuleUpdate(BaseModel):
 
 class ContentRuleResponse(ContentRuleBase):
     id: int
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -203,7 +203,7 @@ class GeneratedPostResponse(BaseModel):
     status: str
     wp_post_id: Optional[int]
     wp_edit_url: Optional[str]
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -253,8 +253,8 @@ class RunLogResponse(BaseModel):
     estimated_cost: float = 0.0
     cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
 
-    started_at: datetime
-    completed_at: Optional[datetime]
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
