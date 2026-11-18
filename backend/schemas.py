@@ -94,28 +94,23 @@ class TopicBulkImport(BaseModel):
 # --- Content Rules Schemas ---
 class ContentRuleBase(BaseModel):
     site_id: Optional[int] = Field(1, description="Associated Managed Site ID")
-    name: str = "Default Publishing Rules"
+    name: Optional[str] = "Default Publishing Rules"
     is_active: bool = True
-    tone: str = "Professional & Informative"
-    reading_level: str = "General Public (Clear, Accessible)"
-    word_count_min: int = Field(450, ge=300)
-    word_count_max: int = Field(520, le=5000)
-    heading_structure: str = "<h6><strong>Heading Title</strong></h6>"
-    include_takeaways: bool = False
-    include_faq: bool = False
-    include_disclaimer: bool = False
-    include_quotes: bool = False
-    include_sources: bool = True
-    disclaimer_text: str = "Disclaimer: This article is for informational purposes only and does not constitute medical advice or formal clinical diagnosis. Consult a qualified healthcare professional before making health-related decisions."
-    style_guide_text: str = "Maintain scientific accuracy. Avoid sensational headlines like 'miracle cure' or 'breakthrough.' Always clearly state clinical trial phases and acknowledge sample sizes or study limitations."
-    seo_rules: Dict[str, Any] = Field(default_factory=lambda: {
-        "meta_description_max_length": 155,
-        "target_keyword_density": "1-2%",
-        "slug_format": "kebab-case-keyword-rich",
-        "generate_image_alt": True
-    })
-    auto_push_to_wp: bool = False
-    enforce_yoast_green: bool = True
+    tone: Optional[str] = "Professional & Informative"
+    reading_level: Optional[str] = "General Public (Clear, Accessible)"
+    word_count_min: Optional[int] = Field(450, ge=300)
+    word_count_max: Optional[int] = Field(520, le=5000)
+    heading_structure: Optional[str] = "<h6><strong>Heading Title</strong></h6>"
+    include_takeaways: Optional[bool] = False
+    include_faq: Optional[bool] = False
+    include_disclaimer: Optional[bool] = False
+    include_quotes: Optional[bool] = False
+    include_sources: Optional[bool] = True
+    disclaimer_text: Optional[str] = "Disclaimer: This article is for informational purposes only and does not constitute medical advice or formal clinical diagnosis. Consult a qualified healthcare professional before making health-related decisions."
+    style_guide_text: Optional[str] = "Maintain scientific accuracy. Avoid sensational headlines like 'miracle cure' or 'breakthrough.' Always clearly state clinical trial phases and acknowledge sample sizes or study limitations."
+    seo_rules: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    auto_push_to_wp: Optional[bool] = False
+    enforce_yoast_green: Optional[bool] = True
     style_reference_sample: Optional[str] = None
     style_reference_font: Optional[str] = "Inter, -apple-system, sans-serif"
     style_reference_header: Optional[str] = "Modern Lead Deck with Category Tag"
@@ -153,14 +148,14 @@ class ContentRuleResponse(ContentRuleBase):
 class ResearchArticleResponse(BaseModel):
     id: int
     site_id: Optional[int] = 1
-    topic_id: Optional[int]
-    run_id: str
-    url: str
-    title: str
-    source_domain: Optional[str]
-    publish_date: Optional[str]
-    key_claims: List[Any]
-    fetched_at: datetime
+    topic_id: Optional[int] = None
+    run_id: Optional[str] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
+    source_domain: Optional[str] = None
+    publish_date: Optional[str] = None
+    key_claims: Optional[List[Any]] = Field(default_factory=list)
+    fetched_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -170,39 +165,39 @@ class GeneratedPostResponse(BaseModel):
     id: int
     site_id: Optional[int] = 1
     site_name: Optional[str] = None
-    topic_id: Optional[int]
-    run_id: str
-    title: str
-    slug: str
-    excerpt: Optional[str]
-    body_html: str
-    meta_title: Optional[str]
-    meta_description: Optional[str]
-    tags: List[str]
-    categories: List[str]
-    sources_used: List[Any]
-    key_takeaways: List[str]
-    disclaimer: Optional[str]
-    similarity_score: float
-    similarity_matched_id: Optional[int]
-    similarity_status: str
+    topic_id: Optional[int] = None
+    run_id: Optional[str] = None
+    title: Optional[str] = ""
+    slug: Optional[str] = ""
+    excerpt: Optional[str] = None
+    body_html: Optional[str] = ""
+    meta_title: Optional[str] = None
+    meta_description: Optional[str] = None
+    tags: Optional[List[str]] = Field(default_factory=list)
+    categories: Optional[List[str]] = Field(default_factory=list)
+    sources_used: Optional[List[Any]] = Field(default_factory=list)
+    key_takeaways: Optional[List[str]] = Field(default_factory=list)
+    disclaimer: Optional[str] = None
+    similarity_score: Optional[float] = 0.0
+    similarity_matched_id: Optional[int] = None
+    similarity_status: Optional[str] = "UNIQUE"
     
     # Yoast SEO Compliance fields
     focus_keyphrase: Optional[str] = None
-    yoast_seo_score: int = 90
-    yoast_readability_score: int = 90
-    yoast_checklist: List[Dict[str, Any]] = Field(default_factory=list)
+    yoast_seo_score: Optional[int] = 90
+    yoast_readability_score: Optional[int] = 90
+    yoast_checklist: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
     
     # Token Economics & Cost Analytics
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-    estimated_cost: float = 0.0
-    cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    prompt_tokens: Optional[int] = 0
+    completion_tokens: Optional[int] = 0
+    total_tokens: Optional[int] = 0
+    estimated_cost: Optional[float] = 0.0
+    cost_breakdown: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-    status: str
-    wp_post_id: Optional[int]
-    wp_edit_url: Optional[str]
+    status: Optional[str] = "PENDING_REVIEW"
+    wp_post_id: Optional[int] = None
+    wp_edit_url: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -237,21 +232,21 @@ class RunLogResponse(BaseModel):
     id: int
     site_id: Optional[int] = 1
     site_name: Optional[str] = "MedHealth Times"
-    run_id: str
-    topic_id: Optional[int]
-    topic_name: str
-    trigger_type: str
-    status: str
-    step_logs: List[Dict[str, Any]]
-    error_message: Optional[str]
-    generated_post_id: Optional[int]
+    run_id: Optional[str] = None
+    topic_id: Optional[int] = None
+    topic_name: Optional[str] = ""
+    trigger_type: Optional[str] = "MANUAL"
+    status: Optional[str] = "SUCCESS"
+    step_logs: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    error_message: Optional[str] = None
+    generated_post_id: Optional[int] = None
     
     # Token Economics & Cost Analytics
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    total_tokens: int = 0
-    estimated_cost: float = 0.0
-    cost_breakdown: Dict[str, Any] = Field(default_factory=dict)
+    prompt_tokens: Optional[int] = 0
+    completion_tokens: Optional[int] = 0
+    total_tokens: Optional[int] = 0
+    estimated_cost: Optional[float] = 0.0
+    cost_breakdown: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

@@ -94,25 +94,39 @@ export default function App() {
     return null;
   };
 
+  const safeFetchJson = async (url) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.warn(`Fetch returned ${res.status} for ${url}`);
+        return null;
+      }
+      return await res.json();
+    } catch (e) {
+      console.warn(`Error fetching ${url}:`, e);
+      return null;
+    }
+  };
+
   const fetchAllData = async () => {
     try {
       const [sitesRes, tRes, rRes, dRes, lRes, sRes, scRes] = await Promise.all([
-        fetch('/api/sites').then(r => r.json()),
-        fetch('/api/topics').then(r => r.json()),
-        fetch(`/api/content-rules?site_id=${selectedSiteId || 1}`).then(r => r.json()),
-        fetch('/api/drafts').then(r => r.json()),
-        fetch('/api/runs/history').then(r => r.json()),
-        fetch('/api/settings').then(r => r.json()),
-        fetch('/api/scheduler/status').then(r => r.json())
+        safeFetchJson('/api/sites'),
+        safeFetchJson('/api/topics'),
+        safeFetchJson(`/api/content-rules?site_id=${selectedSiteId || 1}`),
+        safeFetchJson('/api/drafts'),
+        safeFetchJson('/api/runs/history'),
+        safeFetchJson('/api/settings'),
+        safeFetchJson('/api/scheduler/status')
       ]);
 
-      setSites(Array.isArray(sitesRes) ? sitesRes : []);
-      setTopics(Array.isArray(tRes) ? tRes : []);
-      setContentRules(rRes);
-      setDrafts(Array.isArray(dRes) ? dRes : []);
-      setRunLogs(Array.isArray(lRes) ? lRes : []);
-      setSettings(sRes);
-      setSchedulerStatus(scRes);
+      if (Array.isArray(sitesRes)) setSites(sitesRes);
+      if (Array.isArray(tRes)) setTopics(tRes);
+      if (rRes && typeof rRes === 'object') setContentRules(rRes);
+      if (Array.isArray(dRes)) setDrafts(dRes);
+      if (Array.isArray(lRes)) setRunLogs(lRes);
+      if (sRes && typeof sRes === 'object') setSettings(sRes);
+      if (scRes && typeof scRes === 'object') setSchedulerStatus(scRes);
       fetchBatchStatus();
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
@@ -122,9 +136,8 @@ export default function App() {
   // Reload content rules whenever active site changes
   useEffect(() => {
     if (!isAuthenticated || !selectedSiteId) return;
-    fetch(`/api/content-rules?site_id=${selectedSiteId}`)
-      .then(r => r.json())
-      .then(data => setContentRules(data))
+    safeFetchJson(`/api/content-rules?site_id=${selectedSiteId}`)
+      .then(data => { if (data) setContentRules(data); })
       .catch(console.error);
   }, [selectedSiteId, isAuthenticated]);
 
