@@ -45,7 +45,7 @@ class Settings:
     SEARCH_LOOKBACK_DAYS: int = int(os.getenv("SEARCH_LOOKBACK_DAYS", "7"))
 
     # WordPress Integration
-    WORDPRESS_URL: str = os.getenv("WORDPRESS_URL", "http://sh012.global.temp.domains/~ttprdsmy/medhealthtimes").rstrip("/")
+    WORDPRESS_URL: str = os.getenv("WORDPRESS_URL", "https://medhealthtimes.com").rstrip("/")
     WORDPRESS_API_KEY: str = os.getenv("WORDPRESS_API_KEY") or "k60pRp6jNGAf9CdjexXHfsofXGqzlyoq"
     WORDPRESS_TIMEOUT: int = int(os.getenv("WORDPRESS_TIMEOUT", "30"))
 

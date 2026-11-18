@@ -61,6 +61,19 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
     return sites.find(s => s.id === id) || sites[0] || null;
   }, [sites, wpFocusSiteId, selectedSiteId]);
 
+  // Helper to determine if a site has a secret key configured
+  const siteHasKey = (s) => Boolean(
+    s?.wp_api_key_configured ||
+    (s?.wp_api_key_masked && s.wp_api_key_masked !== '' && s.wp_api_key_masked !== '••••••••') ||
+    (wpSiteEdits[s?.id]?.wp_api_key && wpSiteEdits[s?.id]?.wp_api_key.trim().length > 0)
+  );
+
+  // Helper to sanitize WordPress root URL (strips /wp-json/..., trailing slashes, etc.)
+  const cleanWpUrl = (url) => {
+    if (!url) return '';
+    return url.trim().replace(/\/(wp-json|index\.php).*$/, '').replace(/\?rest_route=.*$/, '').replace(/\/+$/, '');
+  };
+
   // Get edit state for a site (falls back to site's stored values)
   const getWpEdit = (site) => {
     if (!site) return { wp_url: '', wp_api_key: '' };
@@ -74,21 +87,6 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
     }));
   };
 
-  // Test WP connection for a specific site via per-site endpoint
-  const testWordPressSite = async (siteId) => {
-    setIsTestingWp(siteId);
-    setWpTestResults(prev => ({ ...prev, [siteId]: null }));
-    try {
-      const res = await authFetch(`/api/sites/${siteId}/test-wordpress`, { method: 'POST' });
-      const data = await res.json();
-      setWpTestResults(prev => ({ ...prev, [siteId]: data }));
-    } catch (err) {
-      setWpTestResults(prev => ({ ...prev, [siteId]: { connected: false, message: 'Network error: ' + err.message } }));
-    } finally {
-      setIsTestingWp(null);
-    }
-  };
-
   // Save WP config changes for a specific site via PUT /api/sites/{siteId}
   const saveWpSiteConfig = async (siteId) => {
     const edits = wpSiteEdits[siteId];
@@ -96,8 +94,12 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
     setIsSavingSite(siteId);
     try {
       const payload = {};
-      if (edits.wp_url) payload.wp_url = edits.wp_url;
-      if (edits.wp_api_key) payload.wp_api_key = edits.wp_api_key;
+      if (edits.wp_url !== undefined && edits.wp_url !== null) {
+        payload.wp_url = cleanWpUrl(edits.wp_url);
+      }
+      if (edits.wp_api_key !== undefined && edits.wp_api_key !== null && edits.wp_api_key.trim() !== '') {
+        payload.wp_api_key = edits.wp_api_key.trim();
+      }
       const res = await authFetch(`/api/sites/${siteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -120,6 +122,38 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
     }
   };
 
+  // Test WP connection for a specific site via per-site endpoint (passes pending edits if any)
+  const testWordPressSite = async (siteId) => {
+    const site = sites.find(s => s.id === siteId) || focusedSite;
+    const currentEdits = wpSiteEdits[siteId] || {};
+    const testUrl = currentEdits.wp_url ? cleanWpUrl(currentEdits.wp_url) : site?.wp_url;
+    const testKey = (currentEdits.wp_api_key && currentEdits.wp_api_key.trim()) ? currentEdits.wp_api_key.trim() : undefined;
+
+    setIsTestingWp(siteId);
+    setWpTestResults(prev => ({ ...prev, [siteId]: null }));
+    try {
+      const res = await authFetch(`/api/sites/${siteId}/test-wordpress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wp_url: testUrl,
+          wp_api_key: testKey
+        })
+      });
+      const data = await res.json();
+      setWpTestResults(prev => ({ ...prev, [siteId]: data }));
+
+      // If connection succeeded and there were pending edits, auto-save them
+      if (data.connected && (currentEdits.wp_url || currentEdits.wp_api_key)) {
+        await saveWpSiteConfig(siteId);
+      }
+    } catch (err) {
+      setWpTestResults(prev => ({ ...prev, [siteId]: { connected: false, message: 'Network error: ' + err.message } }));
+    } finally {
+      setIsTestingWp(null);
+    }
+  };
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -128,6 +162,16 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
     if (e && e.preventDefault) e.preventDefault();
     setIsSaving(true);
     try {
+      // 1. Save any pending site edits across all sites
+      const editedSiteIds = Object.keys(wpSiteEdits);
+      for (const sidStr of editedSiteIds) {
+        const sid = parseInt(sidStr);
+        if (wpSiteEdits[sid] && (wpSiteEdits[sid].wp_url || wpSiteEdits[sid].wp_api_key)) {
+          await saveWpSiteConfig(sid);
+        }
+      }
+
+      // 2. Save global settings formData
       const payload = {};
       Object.keys(formData).forEach(k => {
         if (formData[k] !== '' && formData[k] !== undefined && !Number.isNaN(formData[k])) {
@@ -214,8 +258,8 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
             </div>
 
             {focusedSite && (
-              <span className={`badge ${focusedSite.wp_api_key ? 'badge-emerald' : 'badge-amber'}`}>
-                {focusedSite.wp_api_key ? 'Key Configured' : 'Key Needed'}
+              <span className={`badge ${siteHasKey(focusedSite) ? 'badge-emerald' : 'badge-amber'}`}>
+                {siteHasKey(focusedSite) ? 'Key Configured' : 'Key Needed'}
               </span>
             )}
           </div>
@@ -233,7 +277,7 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
                 >
                   {sortedSites.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.name}{s.wp_api_key ? ' ✓' : ' ○'}
+                      {s.name}{siteHasKey(s) ? ' ✓' : ' ○'}
                     </option>
                   ))}
                 </select>
@@ -244,14 +288,26 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
           {focusedSite ? (
             <>
               <div className="form-group">
-                <label className="form-label">WordPress Site Root URL</label>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>WordPress Site Root URL</span>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>e.g. https://medhealthtimes.com</span>
+                </label>
                 <input 
                   type="url" 
                   className="form-input" 
                   placeholder="https://yoursite.com"
-                  value={getWpEdit(focusedSite).wp_url || focusedSite.wp_url || ''}
-                  onChange={e => setWpEdit(focusedSite.id, 'wp_url', e.target.value)}
+                  value={getWpEdit(focusedSite).wp_url !== undefined ? getWpEdit(focusedSite).wp_url : (focusedSite.wp_url || '')}
+                  onChange={e => {
+                    const raw = e.target.value;
+                    const cleaned = cleanWpUrl(raw);
+                    setWpEdit(focusedSite.id, 'wp_url', cleaned);
+                  }}
                 />
+                {getWpEdit(focusedSite).wp_url && getWpEdit(focusedSite).wp_url.includes('wp-json') && (
+                  <span style={{ fontSize: '0.74rem', color: '#38bdf8', marginTop: '2px', display: 'block' }}>
+                    Note: REST path automatically stripped to root base URL.
+                  </span>
+                )}
               </div>
 
               <div className="form-group">
@@ -259,28 +315,55 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
                 <input 
                   type="password" 
                   className="form-input" 
-                  placeholder={focusedSite.wp_api_key ? '••••••••••••••••••••••••••••••••' : 'Enter 32-char key from WP Admin'}
+                  placeholder={siteHasKey(focusedSite) ? `Configured (${focusedSite.wp_api_key_masked || '••••••••'}) — enter new key to replace` : 'Enter 32-char key from WP Admin'}
                   value={getWpEdit(focusedSite).wp_api_key || ''}
-                  onChange={e => setWpEdit(focusedSite.id, 'wp_api_key', e.target.value)}
+                  onChange={e => setWpEdit(focusedSite.id, 'wp_api_key', e.target.value.trim())}
                 />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Found in WP Admin under <em>Settings &rarr; Pulse Content Sync</em>.
                 </span>
               </div>
 
-              {/* Save per-site WP config */}
-              {wpSiteEdits[focusedSite.id] && (Object.values(wpSiteEdits[focusedSite.id]).some(v => v)) && (
-                <div style={{ marginBottom: '12px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => saveWpSiteConfig(focusedSite.id)}
-                    disabled={isSavingSite === focusedSite.id}
-                    style={{ padding: '6px 16px', fontSize: '0.82rem' }}
-                  >
-                    {wpSiteSaved === focusedSite.id ? <CheckCircle2 size={14} /> : <Save size={14} />}
-                    {isSavingSite === focusedSite.id ? 'Saving...' : wpSiteSaved === focusedSite.id ? 'Saved!' : `Save WP Config for ${focusedSite.name}`}
-                  </button>
+              {/* Actions row: Save & Test */}
+              <div style={{ marginTop: '14px', marginBottom: '16px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => saveWpSiteConfig(focusedSite.id)}
+                  disabled={isSavingSite === focusedSite.id}
+                  style={{ padding: '7px 16px', fontSize: '0.82rem' }}
+                >
+                  {wpSiteSaved === focusedSite.id ? <CheckCircle2 size={14} /> : <Save size={14} />}
+                  {isSavingSite === focusedSite.id ? 'Saving...' : wpSiteSaved === focusedSite.id ? 'Saved!' : `Save ${focusedSite.name} Settings`}
+                </button>
+
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => testWordPressSite(focusedSite.id)}
+                  disabled={isTestingWp === focusedSite.id}
+                  style={{ padding: '7px 16px', fontSize: '0.82rem' }}
+                >
+                  <RefreshCw size={14} className={isTestingWp === focusedSite.id ? 'animate-spin' : ''} />
+                  {isTestingWp === focusedSite.id ? 'Testing...' : `Test ${focusedSite.name} WP`}
+                </button>
+              </div>
+
+              {wpTestResults[focusedSite.id] && (
+                <div style={{ 
+                  marginBottom: '16px',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  background: wpTestResults[focusedSite.id].connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                  border: wpTestResults[focusedSite.id].connected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                  color: wpTestResults[focusedSite.id].connected ? '#34d399' : '#f87171',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  {wpTestResults[focusedSite.id].connected ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{wpTestResults[focusedSite.id].message}</span>
                 </div>
               )}
             </>
@@ -321,34 +404,6 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
             </a>
           </div>
 
-          {/* Test WordPress Connection — per site */}
-          {focusedSite && (
-            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary"
-                onClick={() => testWordPressSite(focusedSite.id)}
-                disabled={isTestingWp === focusedSite.id}
-              >
-                <RefreshCw size={14} className={isTestingWp === focusedSite.id ? 'animate-spin' : ''} />
-                {isTestingWp === focusedSite.id ? 'Testing...' : `Test ${focusedSite.name} WP`}
-              </button>
-
-              {wpTestResults[focusedSite.id] && (
-                <span style={{ 
-                  fontSize: '0.8rem', 
-                  color: wpTestResults[focusedSite.id].connected ? '#34d399' : '#fb7185',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}>
-                  {wpTestResults[focusedSite.id].connected ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                  {wpTestResults[focusedSite.id].message}
-                </span>
-              )}
-            </div>
-          )}
-
           {/* Quick per-site status list */}
           {sortedSites.length > 1 && (
             <div style={{ marginTop: '18px', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
@@ -378,8 +433,8 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
                         {s.name}
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`badge ${s.wp_api_key ? 'badge-emerald' : 'badge-amber'}`} style={{ fontSize: '0.68rem' }}>
-                          {s.wp_api_key ? 'Key Set' : 'No Key'}
+                        <span className={`badge ${siteHasKey(s) ? 'badge-emerald' : 'badge-amber'}`} style={{ fontSize: '0.68rem' }}>
+                          {siteHasKey(s) ? 'Key Set' : 'No Key'}
                         </span>
                         {result && (
                           <span style={{ fontSize: '0.72rem', color: result.connected ? '#34d399' : '#fb7185', display: 'flex', alignItems: 'center', gap: '3px' }}>

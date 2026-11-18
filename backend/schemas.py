@@ -33,6 +33,7 @@ class SiteResponse(BaseModel):
     slug: str
     wp_url: str
     wp_api_key_masked: str
+    wp_api_key_configured: bool = False
     description: Optional[str] = None
     is_active: bool
     auto_push_to_wp: bool
@@ -46,6 +47,10 @@ class SiteResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SiteTestRequest(BaseModel):
+    wp_url: Optional[str] = None
+    wp_api_key: Optional[str] = None
 
 class SiteTestResponse(BaseModel):
     connected: bool

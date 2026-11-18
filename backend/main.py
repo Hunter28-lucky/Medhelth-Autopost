@@ -14,7 +14,7 @@ from backend.config import settings
 from backend.database import init_db, get_db, AsyncSessionLocal
 from backend.models import Topic, ContentRule, GeneratedPost, RunLog, ManagedSite, ResearchArticle
 from backend.schemas import (
-    SiteCreate, SiteUpdate, SiteResponse, SiteTestResponse,
+    SiteCreate, SiteUpdate, SiteResponse, SiteTestResponse, SiteTestRequest,
     TopicCreate, TopicUpdate, TopicResponse, TopicBulkImport,
     ContentRuleResponse, ContentRuleUpdate,
     GeneratedPostResponse, DraftReviewAction,
@@ -67,6 +67,14 @@ async def seed_initial_data():
             session.add(primary_site)
             await session.commit()
             logger.info("Seeded Primary Managed Site #1: MedHealth Times.")
+        else:
+            # Auto-migrate legacy temporary Bluehost domain to production domain
+            if "sh012.global.temp.domains" in (primary_site.wp_url or ""):
+                primary_site.wp_url = "https://medhealthtimes.com"
+                if not primary_site.wp_api_key:
+                    primary_site.wp_api_key = settings.WORDPRESS_API_KEY
+                await session.commit()
+                logger.info("Auto-migrated Primary Managed Site #1 wp_url to https://medhealthtimes.com")
 
         # 1b. Ensure Managed Site #2 (The HR Review) exists
         hr_site_res = await session.execute(select(ManagedSite).where(ManagedSite.slug == "thehrreview"))
@@ -307,7 +315,8 @@ async def list_managed_sites(db: AsyncSession = Depends(get_db)):
         t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == s.id))).scalar() or 0
         d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
         p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == s.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
-        masked_key = (s.wp_api_key[:3] + "..." + s.wp_api_key[-4:]) if s.wp_api_key and len(s.wp_api_key) > 7 else "••••••••"
+        has_key = bool(s.wp_api_key and s.wp_api_key.strip())
+        masked_key = (s.wp_api_key[:3] + "..." + s.wp_api_key[-4:]) if has_key and len(s.wp_api_key) > 7 else ("••••••••" if has_key else "")
         
         response.append(SiteResponse(
             id=s.id,
@@ -315,6 +324,7 @@ async def list_managed_sites(db: AsyncSession = Depends(get_db)):
             slug=s.slug,
             wp_url=s.wp_url,
             wp_api_key_masked=masked_key,
+            wp_api_key_configured=has_key,
             description=s.description,
             is_active=s.is_active,
             auto_push_to_wp=s.auto_push_to_wp,
@@ -337,10 +347,15 @@ async def create_managed_site(site_in: SiteCreate, db: AsyncSession = Depends(ge
     if existing.scalars().first():
         slug = f"{slug}-{int(datetime.datetime.utcnow().timestamp())}"
 
+    # Clean wp_url if user pasted full REST endpoint
+    raw_url = site_in.wp_url.strip()
+    clean_url = re.sub(r'/(wp-json|index\.php).*$', '', raw_url)
+    clean_url = re.sub(r'\?rest_route=.*$', '', clean_url).rstrip('/')
+
     new_site = ManagedSite(
         name=site_in.name.strip(),
         slug=slug,
-        wp_url=site_in.wp_url.strip().rstrip('/'),
+        wp_url=clean_url,
         wp_api_key=site_in.wp_api_key.strip(),
         description=site_in.description,
         is_active=site_in.is_active,
@@ -369,13 +384,15 @@ async def create_managed_site(site_in: SiteCreate, db: AsyncSession = Depends(ge
     db.add(site_rule)
     await db.commit()
 
-    masked_key = (new_site.wp_api_key[:3] + "..." + new_site.wp_api_key[-4:]) if len(new_site.wp_api_key) > 7 else "••••••••"
+    has_key = bool(new_site.wp_api_key and new_site.wp_api_key.strip())
+    masked_key = (new_site.wp_api_key[:3] + "..." + new_site.wp_api_key[-4:]) if has_key and len(new_site.wp_api_key) > 7 else ("••••••••" if has_key else "")
     return SiteResponse(
         id=new_site.id,
         name=new_site.name,
         slug=new_site.slug,
         wp_url=new_site.wp_url,
         wp_api_key_masked=masked_key,
+        wp_api_key_configured=has_key,
         description=new_site.description,
         is_active=new_site.is_active,
         auto_push_to_wp=new_site.auto_push_to_wp,
@@ -397,7 +414,8 @@ async def get_managed_site(site_id: int, db: AsyncSession = Depends(get_db)):
     t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == site.id))).scalar() or 0
     d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
     p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
-    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if len(site.wp_api_key) > 7 else "••••••••"
+    has_key = bool(site.wp_api_key and site.wp_api_key.strip())
+    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if has_key and len(site.wp_api_key) > 7 else ("••••••••" if has_key else "")
     
     return SiteResponse(
         id=site.id,
@@ -405,6 +423,7 @@ async def get_managed_site(site_id: int, db: AsyncSession = Depends(get_db)):
         slug=site.slug,
         wp_url=site.wp_url,
         wp_api_key_masked=masked_key,
+        wp_api_key_configured=has_key,
         description=site.description,
         is_active=site.is_active,
         auto_push_to_wp=site.auto_push_to_wp,
@@ -425,7 +444,10 @@ async def update_managed_site(site_id: int, site_in: SiteUpdate, db: AsyncSessio
 
     update_data = site_in.model_dump(exclude_unset=True)
     if "wp_url" in update_data and update_data["wp_url"]:
-        update_data["wp_url"] = update_data["wp_url"].strip().rstrip('/')
+        raw_url = update_data["wp_url"].strip()
+        clean_url = re.sub(r'/(wp-json|index\.php).*$', '', raw_url)
+        clean_url = re.sub(r'\?rest_route=.*$', '', clean_url).rstrip('/')
+        update_data["wp_url"] = clean_url
     if "wp_api_key" in update_data and update_data["wp_api_key"]:
         update_data["wp_api_key"] = update_data["wp_api_key"].strip()
 
@@ -438,7 +460,8 @@ async def update_managed_site(site_id: int, site_in: SiteUpdate, db: AsyncSessio
     t_count = (await db.execute(select(func.count(Topic.id)).where(Topic.site_id == site.id))).scalar() or 0
     d_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "PENDING_REVIEW"))).scalar() or 0
     p_count = (await db.execute(select(func.count(GeneratedPost.id)).where(GeneratedPost.site_id == site.id, GeneratedPost.status == "SENT_TO_WP"))).scalar() or 0
-    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if len(site.wp_api_key) > 7 else "••••••••"
+    has_key = bool(site.wp_api_key and site.wp_api_key.strip())
+    masked_key = (site.wp_api_key[:3] + "..." + site.wp_api_key[-4:]) if has_key and len(site.wp_api_key) > 7 else ("••••••••" if has_key else "")
 
     return SiteResponse(
         id=site.id,
@@ -446,6 +469,7 @@ async def update_managed_site(site_id: int, site_in: SiteUpdate, db: AsyncSessio
         slug=site.slug,
         wp_url=site.wp_url,
         wp_api_key_masked=masked_key,
+        wp_api_key_configured=has_key,
         description=site.description,
         is_active=site.is_active,
         auto_push_to_wp=site.auto_push_to_wp,
@@ -470,6 +494,27 @@ async def delete_managed_site(site_id: int, db: AsyncSession = Depends(get_db)):
     return None
 
 @app.post("/api/sites/{site_id}/test-wordpress", response_model=SiteTestResponse, dependencies=[Depends(require_developer)])
+async def test_site_wordpress_connection(
+    site_id: int,
+    payload: Optional[SiteTestRequest] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+    
+    target_url = (payload.wp_url.strip() if (payload and payload.wp_url and payload.wp_url.strip()) else site.wp_url)
+    target_key = (payload.wp_api_key.strip() if (payload and payload.wp_api_key and payload.wp_api_key.strip()) else site.wp_api_key)
+    
+    client = WordPressClient(base_url=target_url, api_key=target_key)
+    res = client.check_connection()
+    return SiteTestResponse(
+        connected=res.get("connected", False),
+        status_code=res.get("status_code", 0),
+        message=res.get("message", "Connection test completed."),
+        site_name=res.get("site_name"),
+        plugin_version=res.get("plugin_version")
+    )
 async def test_site_wordpress_connection(site_id: int, db: AsyncSession = Depends(get_db)):
     site = await db.get(ManagedSite, site_id)
     if not site:

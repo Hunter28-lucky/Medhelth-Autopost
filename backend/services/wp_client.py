@@ -140,7 +140,8 @@ class WordPressClient:
     def get_headers(self) -> Dict[str, str]:
         return {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
             "X-Pulse-Sync-Key": self.api_key or "",
             "X-WP-AI-Key": self.api_key or "",
             "Authorization": f"Bearer {self.api_key or ''}",

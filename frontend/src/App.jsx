@@ -283,7 +283,7 @@ export default function App() {
     : drafts;
 
   const pendingDraftsCount = displayDrafts.filter(d => d.status === 'PENDING_REVIEW').length;
-  const currentSite = sites.find(s => s.id === selectedSiteId) || sites[0] || { name: 'MedHealth Times', id: 1, wp_url: 'http://sh012.global.temp.domains/~ttprdsmy/medhealthtimes' };
+  const currentSite = sites.find(s => s.id === selectedSiteId) || sites[0] || { name: 'MedHealth Times', id: 1, wp_url: 'https://medhealthtimes.com' };
 
   // Token Economics global calculations & modal state
   const costCurrency = settings?.cost_currency || 'USD';
