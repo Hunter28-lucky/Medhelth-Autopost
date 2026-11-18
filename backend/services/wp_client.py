@@ -168,10 +168,11 @@ class WordPressClient:
         headers = self.get_headers()
         endpoints = self._get_candidate_endpoints("health")
         last_resp = None
+        last_error = None
 
         for endpoint in endpoints:
             try:
-                resp = requests.get(endpoint, headers=headers, timeout=10)
+                resp = requests.get(endpoint, headers=headers, timeout=8)
                 last_resp = resp
 
                 # Check if intercepted by Maintenance Mode / Coming Soon plugin
@@ -204,8 +205,8 @@ class WordPressClient:
                             "draft_posts": data.get("draft_posts", 0),
                             "message": "Connection and API key verified successfully."
                         }
-                    except Exception:
-                        pass
+                    except Exception as err:
+                        last_error = f"JSON parse error: {err}"
                 elif resp.status_code in (401, 403):
                     return {
                         "connected": False,
@@ -220,9 +221,15 @@ class WordPressClient:
                         "endpoint": endpoint,
                         "message": "Web host firewall (Mod_Security) flagged the request. Verify server rules."
                     }
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.ConnectTimeout as e:
+                last_error = f"ConnectTimeout: Connection to {endpoint} timed out. Server firewall or cloud network block."
+                logger.warning(f"ConnectTimeout checking {endpoint}: {e}")
+                break
+            except requests.exceptions.ConnectionError as e:
+                last_error = f"ConnectionError: {e}"
                 continue
             except Exception as e:
+                last_error = f"{type(e).__name__}: {e}"
                 logger.warning(f"Error checking {endpoint}: {e}")
                 continue
 
@@ -240,10 +247,11 @@ class WordPressClient:
                 "message": f"Server responded with status {last_resp.status_code}: {last_resp.text[:200]}"
             }
 
+        err_detail = f" (Details: {last_error})" if last_error else ""
         return {
             "connected": False,
             "status_code": 0,
-            "message": f"Could not connect to {self.base_url}. Ensure your WordPress site is online and reachable."
+            "message": f"Could not connect to {self.base_url}. Ensure your WordPress site is online and reachable.{err_detail}"
         }
 
     def inspect_site(self) -> Dict[str, Any]:
@@ -254,16 +262,22 @@ class WordPressClient:
         """
         headers = self.get_headers()
         endpoints = self._get_candidate_endpoints("inspect")
+        inspect_err = None
         
         for endpoint in endpoints:
             try:
-                resp = requests.get(endpoint, headers=headers, timeout=15)
+                resp = requests.get(endpoint, headers=headers, timeout=8)
                 if resp.status_code == 200:
                     data = resp.json()
                     if isinstance(data, dict) and data.get("success"):
                         data["endpoint_used"] = endpoint
                         return data
+            except requests.exceptions.ConnectTimeout as e:
+                inspect_err = f"ConnectTimeout: Connection to {endpoint} timed out"
+                logger.warning(f"Inspect ConnectTimeout on {endpoint}: {e}")
+                break
             except Exception as e:
+                inspect_err = f"{type(e).__name__}: {e}"
                 logger.debug(f"Inspect check failed on {endpoint}: {e}")
                 continue
 
