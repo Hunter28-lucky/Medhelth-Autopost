@@ -499,19 +499,45 @@ export default function SiteManager({
 
               {/* Test Result Display if ran */}
               {testResult && (
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  fontSize: '0.8rem',
-                  background: testResult.connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-                  border: testResult.connected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
-                  color: testResult.connected ? '#34d399' : '#f87171',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  {testResult.connected ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  <span>{testResult.message}</span>
+                <div style={{ marginBottom: '8px' }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    background: testResult.connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                    border: testResult.connected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                    color: testResult.connected ? '#34d399' : '#f87171',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    {testResult.connected ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <span>{testResult.message}</span>
+                  </div>
+
+                  {!testResult.connected && (testResult.message?.includes('ConnectTimeout') || testResult.message?.includes('cloud network block')) && (
+                    <div style={{
+                      marginTop: '6px',
+                      padding: '8px 12px',
+                      background: 'rgba(0, 240, 255, 0.06)',
+                      border: '1px solid rgba(0, 240, 255, 0.25)',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      color: '#cbd5e1'
+                    }}>
+                      <span style={{ color: '#00f0ff', fontWeight: '600' }}>Cloud Datacenter Block:</span> Bluehost blocks cloud hosting IP traffic (Render/AWS).
+                      <div style={{ marginTop: '4px' }}>
+                        <a 
+                          href="http://localhost:8081" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ color: '#34d399', textDecoration: 'underline', fontWeight: '600' }}
+                        >
+                          &rarr; Open Localhost (http://localhost:8081) — 100% Direct Connection
+                        </a>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

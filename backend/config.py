@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -48,6 +49,7 @@ class Settings:
     WORDPRESS_URL: str = os.getenv("WORDPRESS_URL", "https://medhealthtimes.com").rstrip("/")
     WORDPRESS_API_KEY: str = os.getenv("WORDPRESS_API_KEY") or "k60pRp6jNGAf9CdjexXHfsofXGqzlyoq"
     WORDPRESS_TIMEOUT: int = int(os.getenv("WORDPRESS_TIMEOUT", "30"))
+    WORDPRESS_PROXY_URL: Optional[str] = os.getenv("WORDPRESS_PROXY_URL", "")
 
     # Deduplication
     DEDUP_SIMILARITY_THRESHOLD: float = float(os.getenv("DEDUP_SIMILARITY_THRESHOLD", "0.70"))

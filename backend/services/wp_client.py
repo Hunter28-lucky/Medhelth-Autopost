@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import json
@@ -136,6 +137,8 @@ class WordPressClient:
         self.base_url = clean_url
         self.api_key = (api_key or settings.WORDPRESS_API_KEY).strip()
         self.timeout = settings.WORDPRESS_TIMEOUT
+        proxy = os.getenv("WORDPRESS_PROXY_URL") or getattr(settings, "WORDPRESS_PROXY_URL", "")
+        self.proxies = {"http": proxy.strip(), "https": proxy.strip()} if (proxy and proxy.strip()) else None
 
     def get_headers(self) -> Dict[str, str]:
         return {
@@ -172,7 +175,10 @@ class WordPressClient:
 
         for endpoint in endpoints:
             try:
-                resp = requests.get(endpoint, headers=headers, timeout=8)
+                get_kwargs = {"headers": headers, "timeout": 8}
+                if self.proxies:
+                    get_kwargs["proxies"] = self.proxies
+                resp = requests.get(endpoint, **get_kwargs)
                 last_resp = resp
 
                 # Check if intercepted by Maintenance Mode / Coming Soon plugin
@@ -266,7 +272,10 @@ class WordPressClient:
         
         for endpoint in endpoints:
             try:
-                resp = requests.get(endpoint, headers=headers, timeout=8)
+                get_kwargs = {"headers": headers, "timeout": 8}
+                if self.proxies:
+                    get_kwargs["proxies"] = self.proxies
+                resp = requests.get(endpoint, **get_kwargs)
                 if resp.status_code == 200:
                     data = resp.json()
                     if isinstance(data, dict) and data.get("success"):
@@ -318,7 +327,10 @@ class WordPressClient:
         
         for endpoint in endpoints:
             try:
-                resp = requests.get(endpoint, headers=headers, timeout=12)
+                get_kwargs = {"headers": headers, "timeout": 12}
+                if self.proxies:
+                    get_kwargs["proxies"] = self.proxies
+                resp = requests.get(endpoint, **get_kwargs)
                 if resp.status_code == 200:
                     data = resp.json()
                     if isinstance(data, dict) and "categories" in data:
@@ -375,12 +387,14 @@ class WordPressClient:
         for endpoint in endpoints:
             for attempt in range(1, max_retries + 1):
                 try:
-                    resp = requests.post(
-                        endpoint,
-                        json=safe_payload,
-                        headers=headers,
-                        timeout=self.timeout
-                    )
+                    post_kwargs = {
+                        "json": safe_payload,
+                        "headers": headers,
+                        "timeout": self.timeout
+                    }
+                    if self.proxies:
+                        post_kwargs["proxies"] = self.proxies
+                    resp = requests.post(endpoint, **post_kwargs)
 
                     # Check for Maintenance mode intercept
                     content_type = resp.headers.get("content-type", "")

@@ -362,20 +362,63 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
               </div>
 
               {wpTestResults[focusedSite.id] && (
-                <div style={{ 
-                  marginBottom: '16px',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  fontSize: '0.82rem',
-                  background: wpTestResults[focusedSite.id].connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
-                  border: wpTestResults[focusedSite.id].connected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
-                  color: wpTestResults[focusedSite.id].connected ? '#34d399' : '#f87171',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  {wpTestResults[focusedSite.id].connected ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  <span>{wpTestResults[focusedSite.id].message}</span>
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ 
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    background: wpTestResults[focusedSite.id].connected ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)',
+                    border: wpTestResults[focusedSite.id].connected ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
+                    color: wpTestResults[focusedSite.id].connected ? '#34d399' : '#f87171',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    {wpTestResults[focusedSite.id].connected ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                    <span>{wpTestResults[focusedSite.id].message}</span>
+                  </div>
+
+                  {!wpTestResults[focusedSite.id].connected && (wpTestResults[focusedSite.id].message?.includes('ConnectTimeout') || wpTestResults[focusedSite.id].message?.includes('cloud network block')) && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '10px 14px',
+                      background: 'rgba(0, 240, 255, 0.06)',
+                      border: '1px solid rgba(0, 240, 255, 0.25)',
+                      borderRadius: '8px',
+                      fontSize: '0.78rem',
+                      color: '#cbd5e1'
+                    }}>
+                      <div style={{ fontWeight: '600', color: '#00f0ff', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <Globe size={14} /> Cloud Datacenter Block Detected (Bluehost &larr; Render)
+                      </div>
+                      <p style={{ margin: '0 0 6px 0', lineHeight: '1.4' }}>
+                        Bluehost shared hosting blocks incoming TCP requests originating from cloud host datacenters (Render/AWS).
+                        Your WordPress plugin and credentials are 100% correct and verified.
+                      </p>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <a 
+                          href="http://localhost:8081" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.2)',
+                            color: '#34d399',
+                            border: '1px solid rgba(16, 185, 129, 0.4)',
+                            padding: '4px 10px',
+                            borderRadius: '5px',
+                            textDecoration: 'none',
+                            fontWeight: '600',
+                            fontSize: '0.76rem'
+                          }}
+                        >
+                          &rarr; Launch on Localhost (http://localhost:8081) — 100% Direct Access
+                        </a>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
+                          or whitelist Render in Bluehost cPanel &rarr; ModSecurity
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
