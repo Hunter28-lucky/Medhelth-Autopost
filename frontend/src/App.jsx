@@ -990,6 +990,9 @@ export default function App() {
           <SystemSettings 
             settings={settings}
             onSaveSettings={handleSaveSettings}
+            selectedSiteId={selectedSiteId}
+            sites={sites}
+            onRefresh={fetchAllData}
           />
         )}
       </main>
