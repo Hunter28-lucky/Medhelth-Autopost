@@ -544,10 +544,11 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
               onChange={e => handleChange('openrouter_model', e.target.value)}
             >
               <option value="openrouter/free">OpenRouter Auto-Free (Recommended) - Smart Zero-Downtime Router</option>
-              <option value="inclusionai/ling-3.0-flash-sante:free">Ling 3.0 Flash Santé (Free) - Domain-Tuned for Medical & Healthcare</option>
-              <option value="nvidia/nemotron-3-super-120b-a12b:free">NVIDIA Nemotron 3 Super 120B (Free) - Massive 120B Frontier AI</option>
-              <option value="google/gemma-4-31b-it:free">Google Gemma 4 31B IT (Free) - Advanced Reasoning & Formatting</option>
-              <option value="google/gemma-4-26b-a4b-it:free">Google Gemma 4 26B (Free) - Ultra-Fast Latency</option>
+              <option value="inclusionai/ling-3.2-flash:free">Ling 3.2 Flash (Free) - Fast & Accurate Medical/Tech Synthesis</option>
+              <option value="liquid/lfm-3-1.7b:free">Liquid LFM 3 1.7B (Free) - Ultra-Fast Latency</option>
+              <option value="baidu/ernie-5.5-flash-preview:free">Baidu Ernie 5.5 Flash (Free) - High Throughput</option>
+              <option value="nvidia/nemotron-3.5-lightning:free">NVIDIA Nemotron 3.5 Lightning (Free) - High Concurrency</option>
+              <option value="google/gemma-4-31b-it:free">Google Gemma 4 31B IT (Free) - Deep Reasoning & Formatting</option>
             </select>
           </div>
 

@@ -191,17 +191,21 @@ class ResearchEngine:
             if is_title_dup:
                 continue
 
-            # 3. Respect robots.txt
+            # 3. Respect robots.txt for full web scraping
             allowed = await asyncio.to_thread(self.is_scraping_allowed, url)
             if not allowed:
-                logger.info(f"Skipping {url} due to robots.txt restrictions.")
-                continue
+                # If robots.txt disallows page crawling, verify if authentic factual snippet exists
+                if item.get("snippet") and len(item.get("snippet", "").split()) >= 20:
+                    extraction = {"text": item["snippet"].strip(), "extraction_method": "news_snippet_verified"}
+                else:
+                    logger.info(f"Skipping {url} due to robots.txt restrictions and lack of snippet.")
+                    continue
+            else:
+                # 4. Extract genuine article text or authentic structured abstract
+                extraction = await asyncio.to_thread(self.extract_article_text, url, item.get("snippet", ""))
 
-            source_domain = urllib.parse.urlparse(url).netloc
-
-            # 4. Extract genuine article text or authentic structured abstract
-            extraction = await asyncio.to_thread(self.extract_article_text, url, item.get("snippet", ""))
             full_text = extraction["text"]
+            source_domain = urllib.parse.urlparse(url).netloc
 
             if len(full_text.split()) < 20:
                 logger.info(f"Skipping {url}: insufficient factual content ({len(full_text.split())} words).")

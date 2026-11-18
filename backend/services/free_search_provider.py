@@ -119,14 +119,22 @@ class FreeOnlineSearchProvider(SearchProvider):
             is_hr = self._is_hr_workforce_query(q)
 
             if is_hr:
-                # 1. Top HR / Workforce News from DuckDuckGo
-                ddg_hr = self._search_duckduckgo_news(q, max_per_query=max_results, is_hr=True)
-                for r in ddg_hr:
+                # 1. Real-time Bing News RSS (Global news web)
+                bing_hr = self._search_bing_news(q, max_per_query=max_results)
+                for r in bing_hr:
                     if r["url"] not in seen_urls:
                         seen_urls.add(r["url"])
                         results.append(r)
 
-                # 2. Targeted HR authority publications if more needed
+                # 2. Top HR Authority Industry Feeds (HR Dive, WorkLife, Personnel Today, etc.)
+                if len(results) < max_results:
+                    feeds_hr = self._search_top_hr_feeds(q, max_per_query=max_results)
+                    for r in feeds_hr:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
+
+                # 3. Targeted DuckDuckGo news as additional fallback
                 if len(results) < max_results:
                     targeted_hr = self._search_duckduckgo_targeted_hr(q, max_per_query=max_results)
                     for r in targeted_hr:
@@ -157,7 +165,15 @@ class FreeOnlineSearchProvider(SearchProvider):
                             seen_urls.add(r["url"])
                             results.append(r)
 
-                # 4. Filtered DuckDuckGo News Search
+                # 4. Real-time Bing News for Medical / Clinical
+                if len(results) < max_results:
+                    bing_med = self._search_bing_news(f"{q} clinical OR trial OR medical", max_per_query=max_results)
+                    for r in bing_med:
+                        if r["url"] not in seen_urls:
+                            seen_urls.add(r["url"])
+                            results.append(r)
+
+                # 5. Filtered DuckDuckGo News Search
                 if len(results) < max_results:
                     ddg_results = self._search_duckduckgo_news(q, max_per_query=max_results, is_hr=False)
                     for r in ddg_results:
@@ -391,6 +407,102 @@ class FreeOnlineSearchProvider(SearchProvider):
         except Exception as e:
             logger.warning(f"Europe PMC search failed for '{query}': {e}")
 
+        return items
+
+    def _search_bing_news(self, query: str, max_per_query: int = 4) -> List[Dict[str, Any]]:
+        """
+        Queries real-time Bing News RSS across global publishers.
+        Unquotes target destination URLs from apiclick.aspx redirects.
+        """
+        items: List[Dict[str, Any]] = []
+        clean_q = urllib.parse.quote(query)
+        url = f"https://www.bing.com/news/search?q={clean_q}&format=rss"
+        req = urllib.request.Request(url, headers=self.headers)
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                root = ET.fromstring(resp.read().decode("utf-8", errors="ignore"))
+                for item in root.findall(".//item"):
+                    if len(items) >= max_per_query:
+                        break
+                    title = item.find("title").text.strip() if item.find("title") is not None and item.find("title").text else ""
+                    raw_link = item.find("link").text.strip() if item.find("link") is not None and item.find("link").text else ""
+                    desc = item.find("description").text.strip() if item.find("description") is not None and item.find("description").text else ""
+                    pub_date = item.find("pubDate").text.strip() if item.find("pubDate") is not None and item.find("pubDate").text else ""
+
+                    if not raw_link or not title:
+                        continue
+
+                    url_match = re.search(r'url=([^&]+)', raw_link)
+                    real_url = urllib.parse.unquote(url_match.group(1)) if url_match else raw_link
+
+                    domain_match = re.search(r'https?://(?:www\.)?([^/]+)', real_url)
+                    domain = domain_match.group(1) if domain_match else "news"
+
+                    clean_desc = re.sub(r'<[^>]+>', '', desc).strip()
+                    items.append({
+                        "title": title,
+                        "url": real_url,
+                        "source": domain,
+                        "source_domain": domain,
+                        "snippet": clean_desc[:1000] if clean_desc else f"Current news report on {query}.",
+                        "publish_date": pub_date or datetime.datetime.utcnow().isoformat()
+                    })
+        except Exception as e:
+            logger.debug(f"Bing News search failed for '{query}': {e}")
+        return items
+
+    def _search_top_hr_feeds(self, query: str, max_per_query: int = 4) -> List[Dict[str, Any]]:
+        """
+        Monitors top authoritative Human Resources & Workforce publications RSS feeds.
+        """
+        feeds = [
+            ("HR Dive", "https://www.hrdive.com/feeds/news/"),
+            ("WorkLife", "https://www.worklife.news/feed/"),
+            ("Personnel Today", "https://www.personneltoday.com/feed/"),
+            ("HR Daily Advisor", "https://hrdailyadvisor.blr.com/feed/"),
+            ("Workplace Insight", "https://workplaceinsight.net/feed/"),
+            ("MIT Sloan Management", "https://sloanreview.mit.edu/feed/")
+        ]
+        items: List[Dict[str, Any]] = []
+        seen = set()
+        query_tokens = [t.lower() for t in re.split(r'\W+', query) if len(t) > 2]
+
+        for source_name, feed_url in feeds:
+            if len(items) >= max_per_query:
+                break
+            try:
+                req = urllib.request.Request(feed_url, headers=self.headers)
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    root = ET.fromstring(resp.read())
+                    for item in root.findall(".//item"):
+                        title = item.find("title").text.strip() if item.find("title") is not None and item.find("title").text else ""
+                        link = item.find("link").text.strip() if item.find("link") is not None and item.find("link").text else ""
+                        desc = item.find("description").text.strip() if item.find("description") is not None and item.find("description").text else ""
+
+                        if not link or link in seen or not title:
+                            continue
+
+                        text_to_check = (title + " " + desc).lower()
+                        is_match = any(token in text_to_check for token in query_tokens) or (
+                            "ai" in query.lower() and any(k in text_to_check for k in ("ai", "agent", "tech", "digital", "automation", "intelligence"))
+                        )
+
+                        if is_match or len(items) == 0:
+                            seen.add(link)
+                            clean_desc = re.sub(r'<[^>]+>', '', desc).strip()
+                            items.append({
+                                "title": title,
+                                "url": link,
+                                "source": source_name,
+                                "source_domain": urllib.parse.urlparse(link).netloc,
+                                "snippet": clean_desc[:1000] if clean_desc else f"Industry analysis from {source_name}.",
+                                "publish_date": datetime.datetime.utcnow().isoformat()
+                            })
+                            if len(items) >= max_per_query:
+                                break
+            except Exception as e:
+                logger.debug(f"HR feed {source_name} check failed: {e}")
+                continue
         return items
 
     def _search_duckduckgo_targeted_hr(self, query: str, max_per_query: int = 4) -> List[Dict[str, Any]]:

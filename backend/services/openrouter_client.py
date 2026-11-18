@@ -1,8 +1,7 @@
 import json
 import logging
 import re
-import urllib.request
-import urllib.error
+import requests
 from typing import Dict, Any, List, Optional
 from backend.config import settings
 
@@ -11,38 +10,36 @@ logger = logging.getLogger("publisher.openrouter")
 # OpenRouter State-of-the-Art Free Model List
 POPULAR_FREE_MODELS = [
     {
-        "id": "inclusionai/ling-3.0-flash-sante:free",
-        "name": "Ling 3.0 Flash Santé (Free - Medical)",
-        "description": "Domain-tuned healthcare & clinical AI model optimized for medical news and life sciences."
+        "id": "baidu/ernie-5.5-flash-preview:free",
+        "name": "Baidu Ernie 5.5 Flash (Free - Fast & Reliable)",
+        "description": "High-throughput frontier model with sub-3s response time and excellent structured JSON compliance."
     },
     {
-        "id": "nex-agi/nex-n2.5-pro:free",
-        "name": "Nex N2.5 Pro (Free)",
-        "description": "Frontier open-weights reasoning model with exceptional clinical format adherence."
+        "id": "liquid/lfm-3-1.7b:free",
+        "name": "Liquid LFM 3 1.7B (Free - Ultra-Fast)",
+        "description": "Ultra-fast neural model with strict schema adherence and zero rate limits."
     },
     {
-        "id": "nex-agi/nex-n2.5-mini:free",
-        "name": "Nex N2.5 Mini (Free)",
-        "description": "Ultra-fast response latency with concise factual synthesis."
-    },
-    {
-        "id": "google/gemma-4-31b-it:free",
-        "name": "Google Gemma 4 31B IT (Free)",
-        "description": "Google frontier instruction-tuned model with deep reasoning."
+        "id": "inclusionai/ling-3.2-flash:free",
+        "name": "Ling 3.2 Flash (Free - Medical & Tech)",
+        "description": "Domain-tuned model for scientific, clinical, and industry reporting."
     },
     {
         "id": "openrouter/free",
         "name": "OpenRouter Auto-Free",
         "description": "Smart Auto-Router: Dynamically selects available free models."
+    },
+    {
+        "id": "google/gemma-4-31b-it:free",
+        "name": "Google Gemma 4 31B IT (Free)",
+        "description": "Google frontier instruction-tuned model with deep reasoning."
     }
 ]
 
 FREE_MODEL_CASCADE = [
-    "inclusionai/ling-3.0-flash-sante:free",
-    "nex-agi/nex-n2.5-mini:free",
-    "nex-agi/nex-n2.5-pro:free",
-    "liquid/lfm-2.5-2.6b:free",
-    "openrouter/free"
+    "inclusionai/ling-3.2-flash:free",
+    "openrouter/free",
+    "liquid/lfm-3-1.7b:free"
 ]
 
 class OpenRouterClient:
@@ -120,14 +117,12 @@ class OpenRouterClient:
                     ],
                     "temperature": temperature,
                     "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"} if "llama-3.3" in model_candidate or "qwen" in model_candidate else None,
-                    "reasoning": {"effort": "none"},
-                    "include_reasoning": False
+                    "response_format": {"type": "json_object"} if "llama-3.3" in model_candidate or "qwen" in model_candidate else None
                 }
                 # Remove None fields
                 payload = {k: v for k, v in payload.items() if v is not None}
 
-                response_data = self._send_request(payload, timeout=15)
+                response_data = self._send_request(payload, timeout=8)
                 choices = response_data.get("choices", [])
                 if not choices:
                     err_msg = response_data.get("error", {}).get("message", "Empty choices array returned")
@@ -187,26 +182,25 @@ class OpenRouterClient:
 
         raise RuntimeError(f"All OpenRouter free models exhausted. Last error: {last_error}")
 
-    def _send_request(self, payload: Dict[str, Any], timeout: int = 15) -> Dict[str, Any]:
-        data_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            self.api_url,
-            data=data_bytes,
-            headers={
-                "Authorization": f"Bearer {self.api_key.strip()}",
-                "HTTP-Referer": "https://pulsepublish.local",
-                "X-Title": "PulsePublish Free AI News Publisher",
-                "Content-Type": "application/json",
-                "User-Agent": "PulsePublish/2.8.4"
-            },
-            method="POST"
-        )
+    def _send_request(self, payload: Dict[str, Any], timeout: int = 8) -> Dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key.strip()}",
+            "HTTP-Referer": "https://pulsepublish.local",
+            "X-Title": "PulsePublish Free AI News Publisher",
+            "Content-Type": "application/json",
+            "User-Agent": "PulsePublish/2.8.4"
+        }
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                body = response.read().decode("utf-8")
-                return json.loads(body)
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"HTTP {e.code}: {err_body}")
+            resp = requests.post(
+                self.api_url,
+                json=payload,
+                headers=headers,
+                timeout=(5, timeout)
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(f"HTTP {resp.status_code}: {resp.text}")
+            return resp.json()
+        except requests.exceptions.Timeout:
+            raise RuntimeError(f"Request timed out after {timeout}s")
         except Exception as e:
             raise RuntimeError(f"Network error: {str(e)}")

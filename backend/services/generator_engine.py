@@ -243,7 +243,7 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=0.3,
-                    max_tokens=4000
+                    max_tokens=2000
                 )
                 if isinstance(res, dict) and "body_html" in res:
                     res["body_html"] = clean_semantic_post_html(res["body_html"])
@@ -252,7 +252,7 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
                 logger.warning(f"OpenRouter generation failed ({e}). Proceeding to secondary provider or sandbox fallback...")
 
         # 2. Try Anthropic Claude if configured
-        if self.anthropic_api_key:
+        if self.anthropic_api_key and self.anthropic_api_key.startswith("sk-ant-"):
             try:
                 if not self.anthropic_client:
                     import anthropic
@@ -260,7 +260,7 @@ CRITICAL: Output ONLY the raw JSON object starting directly with '{'. Do not inc
                 response = await asyncio.to_thread(
                     self.anthropic_client.messages.create,
                     model=self.anthropic_model,
-                    max_tokens=4000,
+                    max_tokens=2000,
                     system=system_prompt,
                     messages=[{"role": "user", "content": user_prompt}]
                 )

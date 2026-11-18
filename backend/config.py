@@ -29,7 +29,7 @@ class Settings:
     # AI Configuration (OpenRouter Free AI & Anthropic)
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "openrouter")  # 'openrouter', 'anthropic', or 'sandbox'
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY") or _DEFAULT_OR_KEY
-    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "inclusionai/ling-3.0-flash-sante:free")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "openrouter/free")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
 
