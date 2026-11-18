@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { 
   Globe, Plus, CheckCircle2, AlertCircle, RefreshCw, 
   ExternalLink, Layers, FileText, Send, Sparkles, 
-  Settings2, Trash2, Key, Check, Shield, Clock, HelpCircle
+  Settings2, Trash2, Key, Check, Shield, Clock, HelpCircle, Eye
 } from 'lucide-react';
 import { authFetch } from '../apiClient';
+import SiteInspectorModal from './SiteInspectorModal';
 
 export default function SiteManager({ 
   sites, 
@@ -15,6 +16,7 @@ export default function SiteManager({
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSite, setEditingSite] = useState(null);
+  const [inspectingSite, setInspectingSite] = useState(null);
   const [testResults, setTestResults] = useState({});
   const [testingSiteId, setTestingSiteId] = useState(null);
   const [seedingPresetSiteId, setSeedingPresetSiteId] = useState(null);
@@ -529,6 +531,15 @@ export default function SiteManager({
 
                   <button
                     className="btn btn-secondary"
+                    onClick={() => setInspectingSite(site)}
+                    style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+                    title="Inspect WordPress site details, live categories, and plugins"
+                  >
+                    <Eye size={13} style={{ color: '#00f0ff' }} /> Inspect
+                  </button>
+
+                  <button
+                    className="btn btn-secondary"
                     onClick={() => onSelectSite(site.id, 'rules')}
                     style={{ fontSize: '0.78rem', padding: '6px 12px' }}
                     title="Configure content directives for this website"
@@ -886,6 +897,14 @@ export default function SiteManager({
           </div>
         </div>
       )}
+
+      {/* MODAL: Site Inspector & Intelligence */}
+      <SiteInspectorModal
+        site={inspectingSite}
+        isOpen={Boolean(inspectingSite)}
+        onClose={() => setInspectingSite(null)}
+        onRefresh={onRefresh}
+      />
     </div>
   );
 }

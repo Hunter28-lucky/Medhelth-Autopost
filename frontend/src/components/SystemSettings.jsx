@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Globe, Shield, Save, CheckCircle2, AlertCircle, RefreshCw, 
-  Download, Sparkles, Cpu, DollarSign, TrendingUp, Calculator, ChevronDown
+  Download, Sparkles, Cpu, DollarSign, TrendingUp, Calculator, ChevronDown, Eye
 } from 'lucide-react';
 import { authFetch } from '../apiClient';
+import SiteInspectorModal from './SiteInspectorModal';
 
 export default function SystemSettings({ settings, onSaveSettings, selectedSiteId, sites = [], onRefresh }) {
   const [formData, setFormData] = useState({});
   const [costMode, setCostMode] = useState('direct'); // 'direct' or 'tokens'
   const [wpTestResults, setWpTestResults] = useState({}); // keyed by siteId
   const [isTestingWp, setIsTestingWp] = useState(null); // siteId currently testing, or null
+  const [showInspectorModal, setShowInspectorModal] = useState(false);
   const [wpFocusSiteId, setWpFocusSiteId] = useState(null); // which site the WP card is editing
   const [wpSiteEdits, setWpSiteEdits] = useState({}); // per-site edit state: { [siteId]: { wp_url, wp_api_key } }
   const [isSavingSite, setIsSavingSite] = useState(null); // siteId currently saving
@@ -347,6 +349,16 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
                   <RefreshCw size={14} className={isTestingWp === focusedSite.id ? 'animate-spin' : ''} />
                   {isTestingWp === focusedSite.id ? 'Testing...' : `Test ${focusedSite.name} WP`}
                 </button>
+
+                <button 
+                  type="button" 
+                  className="btn btn-secondary"
+                  onClick={() => setShowInspectorModal(true)}
+                  style={{ padding: '7px 16px', fontSize: '0.82rem' }}
+                  title="Inspect WordPress site details, live categories, and plugins"
+                >
+                  <Eye size={14} style={{ color: '#00f0ff' }} /> Inspect Details
+                </button>
               </div>
 
               {wpTestResults[focusedSite.id] && (
@@ -388,10 +400,10 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
           }}>
             <div>
               <strong style={{ color: '#fff', fontSize: '0.82rem', display: 'block' }}>
-                Plugin Package: Pulse Content Sync v2.8.4
+                Plugin Package: Pulse Content Sync v2.9.0
               </strong>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.74rem' }}>
-                Lightweight (10KB) &bull; Stealth mode &bull; Zero AI disclosures in WP
+                Lightweight (12KB) &bull; Stealth mode &bull; Real-time Site Intelligence &amp; Category Sync
               </span>
             </div>
             <a
@@ -1130,6 +1142,14 @@ export default function SystemSettings({ settings, onSaveSettings, selectedSiteI
           </button>
         </div>
       </div>
+
+      {/* WordPress Site Inspector & Intelligence Modal */}
+      <SiteInspectorModal
+        site={focusedSite}
+        isOpen={showInspectorModal}
+        onClose={() => setShowInspectorModal(false)}
+        onRefresh={onRefresh}
+      />
     </form>
   );
 }

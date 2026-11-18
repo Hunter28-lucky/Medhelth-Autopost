@@ -67,7 +67,7 @@ class AI_News_Publisher_Admin_Settings {
                     <h1 style="margin: 0; display: flex; align-items: center; gap: 8px;">
                         <span class="dashicons dashicons-cloud-saved" style="font-size: 28px; width: 28px; height: 28px; color: #2271b1;"></span>
                         Pulse Content Sync
-                        <span style="font-size: 13px; background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 12px; font-weight: 600;">v2.8.4 Active</span>
+                        <span style="font-size: 13px; background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 12px; font-weight: 600;">v2.9.0 Active</span>
                     </h1>
                     <p style="margin: 4px 0 0 0; color: #64748b; font-size: 13px;">
                         Proprietary editorial draft connector &bull; <strong>Engineered by Krish Goswami</strong>

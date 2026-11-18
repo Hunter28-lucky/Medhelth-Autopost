@@ -193,7 +193,15 @@ class WordPressClient:
                             "status_code": 200,
                             "endpoint": endpoint,
                             "site_name": data.get("site_name", "WordPress Site"),
-                            "plugin_version": data.get("plugin_version", "2.8.4"),
+                            "site_url": data.get("site_url", self.base_url),
+                            "plugin_version": data.get("plugin_version", "2.9.0"),
+                            "wordpress_version": data.get("wordpress_version"),
+                            "php_version": data.get("php_version"),
+                            "yoast_active": data.get("yoast_active", False),
+                            "yoast_version": data.get("yoast_version"),
+                            "categories_count": data.get("categories_count", 0),
+                            "published_posts": data.get("published_posts", 0),
+                            "draft_posts": data.get("draft_posts", 0),
                             "message": "Connection and API key verified successfully."
                         }
                     except Exception:
@@ -237,6 +245,82 @@ class WordPressClient:
             "status_code": 0,
             "message": f"Could not connect to {self.base_url}. Ensure your WordPress site is online and reachable."
         }
+
+    def inspect_site(self) -> Dict[str, Any]:
+        """
+        Deep Site Diagnostics & Intelligence:
+        Retrieves full environment, live taxonomy categories, Yoast SEO detection,
+        and post statistics from Pulse Content Sync plugin.
+        """
+        headers = self.get_headers()
+        endpoints = self._get_candidate_endpoints("inspect")
+        
+        for endpoint in endpoints:
+            try:
+                resp = requests.get(endpoint, headers=headers, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict) and data.get("success"):
+                        data["endpoint_used"] = endpoint
+                        return data
+            except Exception as e:
+                logger.debug(f"Inspect check failed on {endpoint}: {e}")
+                continue
+
+        # Fallback for older plugin version: synthesize from health check
+        health_data = self.check_connection()
+        return {
+            "success": health_data.get("connected", False),
+            "fallback_mode": True,
+            "site_info": {
+                "name": health_data.get("site_name", "WordPress Site"),
+                "site_url": self.base_url,
+                "wordpress_version": health_data.get("wordpress_version", "Detected"),
+                "php_version": health_data.get("php_version", "Detected"),
+            },
+            "seo_info": {
+                "yoast_active": health_data.get("yoast_active", False),
+                "yoast_version": health_data.get("yoast_version", "Not Detected"),
+                "compliance_status": "Install Pulse Content Sync v2.9.0 for deep diagnostics."
+            },
+            "taxonomy": {
+                "total_categories": health_data.get("categories_count", 0),
+                "categories": []
+            },
+            "post_stats": {
+                "published": health_data.get("published_posts", 0),
+                "drafts": health_data.get("draft_posts", 0)
+            },
+            "plugin_version": health_data.get("plugin_version", "Legacy"),
+            "warnings": ["Please update to Pulse Content Sync v2.9.0 on this site to unlock full live categories inspection."]
+        }
+
+    def fetch_categories(self) -> List[Dict[str, Any]]:
+        """
+        Fetch all live categories registered on the WordPress site.
+        """
+        headers = self.get_headers()
+        endpoints = self._get_candidate_endpoints("categories")
+        
+        for endpoint in endpoints:
+            try:
+                resp = requests.get(endpoint, headers=headers, timeout=12)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict) and "categories" in data:
+                        return data["categories"]
+                    elif isinstance(data, list):
+                        return data
+            except Exception as e:
+                logger.debug(f"Category fetch failed on {endpoint}: {e}")
+                continue
+
+        # Try inspection endpoint
+        insp = self.inspect_site()
+        if insp and "taxonomy" in insp and "categories" in insp["taxonomy"]:
+            return insp["taxonomy"]["categories"]
+
+        return []
 
     def submit_draft_post(self, post_payload: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
         """

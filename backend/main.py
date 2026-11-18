@@ -515,20 +515,82 @@ async def test_site_wordpress_connection(
         site_name=res.get("site_name"),
         plugin_version=res.get("plugin_version")
     )
-async def test_site_wordpress_connection(site_id: int, db: AsyncSession = Depends(get_db)):
+
+@app.get("/api/sites/{site_id}/inspect", dependencies=[Depends(require_developer)])
+async def inspect_site_wordpress(site_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Returns deep intelligence and diagnostics from the connected WordPress website:
+    - WordPress & PHP environment
+    - All live categories and post counts
+    - Yoast SEO status and version
+    - Active plugins
+    - Post statistics
+    """
     site = await db.get(ManagedSite, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Website not found")
-    
+
     client = WordPressClient(base_url=site.wp_url, api_key=site.wp_api_key)
-    res = client.check_connection()
-    return SiteTestResponse(
-        connected=res.get("connected", False),
-        status_code=res.get("status_code", 0),
-        message=res.get("message", "Connection test completed."),
-        site_name=res.get("site_name"),
-        plugin_version=res.get("plugin_version")
-    )
+    res = client.inspect_site()
+    return res
+
+@app.post("/api/sites/{site_id}/sync-categories", dependencies=[Depends(require_developer)])
+async def sync_live_categories_to_topics(site_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Queries live WordPress categories from the connected site and synchronizes
+    them into PulsePublish topics, ensuring exact 1:1 category parity.
+    """
+    site = await db.get(ManagedSite, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found")
+
+    client = WordPressClient(base_url=site.wp_url, api_key=site.wp_api_key)
+    cats = client.fetch_categories()
+    if not cats:
+        raise HTTPException(status_code=400, detail="No categories returned from WordPress. Ensure Pulse Content Sync v2.9.0 is activated.")
+
+    created_count = 0
+    existing_count = 0
+
+    for c in cats:
+        name = c.get("name")
+        if not name:
+            continue
+        
+        # Check if topic already exists for this site
+        exists = await db.execute(
+            select(Topic).where(Topic.site_id == site_id, Topic.name == name)
+        )
+        if not exists.scalars().first():
+            # Generate keywords from name
+            kws = [name]
+            cleaned_words = [w for w in name.split() if len(w) > 3 and w.lower() not in ("with", "from", "that", "this", "news")]
+            if cleaned_words:
+                kws.append(" ".join(cleaned_words))
+            
+            t = Topic(
+                site_id=site_id,
+                name=name,
+                keywords=kws,
+                weight=8 if (c.get("count", 0) > 0) else 5,
+                is_active=True,
+                lookback_days=7
+            )
+            db.add(t)
+            created_count += 1
+        else:
+            existing_count += 1
+
+    await db.commit()
+    return {
+        "success": True,
+        "site_id": site_id,
+        "site_name": site.name,
+        "total_wp_categories": len(cats),
+        "newly_imported_topics": created_count,
+        "already_existing_topics": existing_count,
+        "message": f"Successfully synced {created_count} new categories from {site.name} ({existing_count} already existed)."
+    }
 
 @app.post("/api/sites/{site_id}/seed-presets", dependencies=[Depends(require_developer)])
 async def seed_site_topic_presets(

@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Pulse Content Sync
  * Plugin URI:        https://krishgoswami.dev/pulse-sync
- * Description:       High-performance editorial sync and draft connector. Developed by Krish Goswami.
- * Version:           2.8.4
+ * Description:       High-performance editorial sync, draft connector, and deep site inspector. Developed by Krish Goswami.
+ * Version:           2.9.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Krish Goswami
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('PULSE_SYNC_VERSION', '2.8.4');
+define('PULSE_SYNC_VERSION', '2.9.0');
 define('PULSE_SYNC_PATH', plugin_dir_path(__FILE__));
 define('PULSE_SYNC_URL', plugin_dir_url(__FILE__));
 
